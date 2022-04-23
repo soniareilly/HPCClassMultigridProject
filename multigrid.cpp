@@ -20,10 +20,10 @@ void restriction(double* u, double* up, int n){
     // u is the output, size n/2+1 x n/2+1, up is the input, size n+1 x n+1
     for (int i = 0; i < n/2+1; i++){
         for (int j = 0; j < n/2+1; j++){
-            u[i*(n/2+1)+j] = (up[(2*i-1)*(n+1)+2*j-1] + 2*up[(2*i-1)*(n+1)+2*j] + up[(2*i-1)*(n+1)+2*j+1])/16;
-            u[i*(n/2+1)+j] += (2*up[2*i*(n+1)+2*j-1] + 4*up[2*i*(n+1)+2*j] + 2*up[2*i*(n+1)+2*j+1])/16;
-            u[i*(n/2+1)+j] += (up[(2*i+1)*(n+1)+2*j-1] + 2*up[(2*i+1)*(n+1)+2*j] + up[(2*i+1)*(n+1)+2*j+1])/16;
-
+            //u[i*(n/2+1)+j] = (up[(2*i-1)*(n+1)+2*j-1] + 2*up[(2*i-1)*(n+1)+2*j] + up[(2*i-1)*(n+1)+2*j+1])/16;
+            //u[i*(n/2+1)+j] += (2*up[2*i*(n+1)+2*j-1] + 4*up[2*i*(n+1)+2*j] + 2*up[2*i*(n+1)+2*j+1])/16;
+            //u[i*(n/2+1)+j] += (up[(2*i+1)*(n+1)+2*j-1] + 2*up[(2*i+1)*(n+1)+2*j] + up[(2*i+1)*(n+1)+2*j+1])/16;
+            u[i*(n/2+1)+j] = up[2*i*(n+1)+2*j];
         }
     }
 }
@@ -74,6 +74,43 @@ void mg_inner(double** u, double** f,
     return;
 }
 
-int main(){
-    
+void timestepper(double* uT, double* u0, double* v1, double* v2, 
+                double nu, int maxlvl, int n, double dt, double T){
+    // Outputs the solution u after performing the timestepping starting with u0
+    // n is the dimension of u0, v1, v2, the finest n
+    // declare towers
+    double utow[maxlvl]; double v1tow[maxlvl]; double v2tow[maxlvl];
+    // copy u0
+    double* u = (double*) malloc((n+1)*(n+1)*sizeof(double));
+    for (int i=0; i<n+1; i++){
+        u[i] = u0[i];
+    }
+    // initialize top levels of towers
+    utow[0] = u; v1tow[0] = v1; v2tow[0] = v2;
+    for (int i = 1; i < maxlvl; i++){
+        // lower levels are unitialized
+        utow[i] = (double*) malloc(((n>>i)+1)*((n>>i)+1)* sizeof(double));
+        v1tow[i] = (double*) malloc(((n>>i)+1)*((n>>i)+1)* sizeof(double));
+        v2tow[i] = (double*) malloc(((n>>i)+1)*((n>>i)+1)* sizeof(double));
+    }
+
+    // iterate
+    for (int iter = 0; iter < (int) T/dt; iter++){
+        mg_outer(utow, v1tow, v2tow, nu, maxlvl, n, dt); // utow <- mg_outer(stuff)
+    }
 }
+
+int main(){
+    // define N and calculate maxlvl
+    // define v and nu
+    // initialize u to some function
+
+    // call timestepper
+}
+
+// allocate v1, v2, u, rhs
+
+// let Tanya initialize rhs
+
+// for loop calls mg_outer
+// pass in current u
