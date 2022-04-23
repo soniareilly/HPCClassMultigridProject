@@ -43,6 +43,10 @@ void mg_inner(double* up, double* u,
     // Loop over shape -- shape == 1 is V-cycle, shape == 2 is W-cycle
     for (sh = 0; sh < shape; ++sh)
     {
+        for (iter = 0; iter < NITER; ++iter)
+        {
+            gauss_seidel(up, f[lvl-1], dx, n);
+        }
         restriction(u, up, n);      // u <- restriction(up, n)
         int nnew = n/2;
         double dx2 = 2*dx;
@@ -55,10 +59,6 @@ void mg_inner(double* up, double* u,
             for (i = 0; i < nnew; ++i)  u[i] += up[i];
         } else 
         {
-            for (iter = 0; iter < NITER; ++iter)
-            {
-                gauss_seidel(u, fi, dx2, nnew);
-            }
             // Multigrid should output in up a u of the same dimension as it was given
             mg_inner(u, up, f, r, dx2, nnew, lvl+1, maxlvl, shape); // u <- mg(stuff)
         }
@@ -67,7 +67,7 @@ void mg_inner(double* up, double* u,
         {
             gauss_seidel(up, f[lvl-1], dx, n);
         }
-        return;
-        // Output should be in up!
     }
+    // Output should be in up!
+    return;
 }
