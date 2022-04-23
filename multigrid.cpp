@@ -33,19 +33,15 @@ void mg_inner(double** u, double** f,
               double* tmp1, double* tmp2, 
               double dx, int n, 
               int lvl, int maxlvl, 
-              int shape, double dt, double v1, double v2, double nu)
+              int shape, double dt, double *v1, double *v2, double nu)
 {
     // Inner function for multigrid solver
     int i, iter, sh;
-    double rr,aa,bb,cc,dd; // LHS and RHS coefficients
     int NITER = 50; //number of Gauss-Seidel iterations
         // I don't know how many to use; experiment!
-    // compute coefficients for LHS and RHS
-    rr = r(dx,dt);
-    aa = a(v2,nu,dx,rr);
-    bb = b(v2,nu,dx,rr);
-    cc = a(v1,nu,dx,rr);
-    dd = b(v1,nu,dx,rr);
+    
+    // compute coefficient for LHS and RHS
+    double rr = r(dx,dt);
 
     double *ui = u[lvl];
     double *fi = f[lvl];
@@ -59,11 +55,10 @@ void mg_inner(double** u, double** f,
     {
         for (iter = 0; iter < NITER; ++iter)
         {
-
-            gauss_seidel(ui, unew, fi, n, aa, bb, cc, dd, rr, nu);
+            gauss_seidel(ui, unew, fi, n, v1, v2, rr, nu, dx);
 
         }
-        residual(tmp1, ui, fi, n, aa, bb, cc, dd, rr, nu);      // tmp1 <- residual(u, f, n) - residual n
+        residual(tmp1, ui, fi, n, v1, v2, rr, nu, dx);      // tmp1 <- residual(u, f, n) - residual n
         restriction(tmp2, tmp1, n);      // tmp2 <- restriction(tmp2, n) - residual nnew
         if (lvl == maxlvl)
         {
@@ -79,9 +74,10 @@ void mg_inner(double** u, double** f,
         for (i = 0; i < n; ++i) ui[i] += tmp1[i];
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, unew, fi, n, aa, bb, cc, dd, rr, nu);
+            gauss_seidel(ui, unew, fi, n, v1, v2, rr, nu, dx);
         }
     }
+    free(unew);
     // Output should be in u[lvl]!
     return;
 }
@@ -91,7 +87,7 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     // Outputs the solution u after performing the timestepping starting with u0
     // n is the dimension of u0, v1, v2, the finest n
     // declare towers
-    double utow[maxlvl]; double v1tow[maxlvl]; double v2tow[maxlvl];
+    double *utow[maxlvl]; double *v1tow[maxlvl]; double *v2tow[maxlvl];
     // copy u0
     double* u = (double*) malloc((n+1)*(n+1)*sizeof(double));
     for (int i=0; i<n+1; i++){
