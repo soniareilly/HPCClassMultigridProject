@@ -29,8 +29,8 @@ void restriction(double* u, double* up, int n){
     }
 }
 
-void mg_inner(double* up, double* u, 
-              double** f, double* r, 
+void mg_inner(double** u, double** f, 
+              double* tmp1, double* tmp2, 
               double dx, int n, 
               int lvl, int maxlvl, 
               int shape)
@@ -40,34 +40,37 @@ void mg_inner(double* up, double* u,
     int NITER = 50; //number of Gauss-Seidel iterations
         // I don't know how many to use; experiment!
 
+    ui = u[lvl];
+    fi = f[lvl];
+    int nnew = n/2;
+    double dx2 = 2*dx;
+
     // Loop over shape -- shape == 1 is V-cycle, shape == 2 is W-cycle
     for (sh = 0; sh < shape; ++sh)
     {
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(up, f[lvl-1], dx, n);
+            gauss_seidel(ui, fi, dx, n);
         }
-        restriction(u, up, n);      // u <- restriction(up, n)
-        int nnew = n/2;
-        double dx2 = 2*dx;
-        double* fi = f[lvl];        // double** f holds function f on all grids
-        residual(r, u, fi, nnew);   // r <- residual(u, fi, n)
+        residual(tmp1, ui, fi, n, dx);       // tmp1 <- residual(u, f, n) - residual n
+        restriction(tmp2, tmp1, n);      // tmp2 <- restriction(tmp2, n) - residual nnew
         if (lvl == maxlvl)
         {
             // Explicit solve for du = A\r
-            exact_solve(up, r, nnew);  // up <- exact_solve(r, nnew)
-            for (i = 0; i < nnew; ++i)  u[i] += up[i];
+            exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
+            for (i = 0; i < nnew; ++i)  tmp2[i] += tmp1[i];
         } else 
         {
-            // Multigrid should output in up a u of the same dimension as it was given
-            mg_inner(u, up, f, r, dx2, nnew, lvl+1, maxlvl, shape); // u <- mg(stuff)
+            // Multigrid should output in 1st arg with same dimension as input
+            mg_inner(u, f, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape); // r <- mg(stuff)
         }
-        prolongation(up, u, nnew);  // up <- prolongation(u, nnew)
+        prolongation(tmp1, u[lvl+1], nnew);  // up <- prolongation(u, nnew)
+        for (i = 0; i < n; ++i) ui[i] += tmp1[i];
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(up, f[lvl-1], dx, n);
+            gauss_seidel(ui, fi, dx, n);
         }
     }
-    // Output should be in up!
+    // Output should be in u[lvl]!
     return;
 }
