@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <math.h>
-//#include "prolres.h"  // Prolongation + restriction header
 //#include "gs.h"       // Gauss-Seidel header
 
 // u is row major
@@ -70,4 +69,8 @@ void mg_inner(double* up, double* u,
     }
     // Output should be in up!
     return;
+}
+
+int main(){
+    
 }
