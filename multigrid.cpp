@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 //#include "prolres.h"  // Prolongation + restriction header
-//#include "gs.h"       // Gauss-Seidel header
+#include "gs.h"       // Gauss-Seidel header
 
 // u is row major
 
@@ -33,26 +33,37 @@ void mg_inner(double** u, double** f,
               double* tmp1, double* tmp2, 
               double dx, int n, 
               int lvl, int maxlvl, 
-              int shape)
+              int shape, double dt, double v1, double v2, double nu)
 {
     // Inner function for multigrid solver
     int i, iter, sh;
+    double rr,aa,bb,cc,dd; // LHS and RHS coefficients
     int NITER = 50; //number of Gauss-Seidel iterations
         // I don't know how many to use; experiment!
+    // compute coefficients for LHS and RHS
+    rr = r(dx,dt);
+    aa = a(v2,nu,dx,rr);
+    bb = b(v2,nu,dx,rr);
+    cc = a(v1,nu,dx,rr);
+    dd = b(v1,nu,dx,rr);
 
-    ui = u[lvl];
-    fi = f[lvl];
+    double *ui = u[lvl];
+    double *fi = f[lvl];
     int nnew = n/2;
     double dx2 = 2*dx;
+
+    double* unew = (double *) calloc(sizeof(double), (n+2)*(n+2));
 
     // Loop over shape -- shape == 1 is V-cycle, shape == 2 is W-cycle
     for (sh = 0; sh < shape; ++sh)
     {
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, fi, dx, n);
+
+            gauss_seidel(ui, unew, fi, n, aa, bb, cc, dd, rr, nu);
+
         }
-        residual(tmp1, ui, fi, n, dx);       // tmp1 <- residual(u, f, n) - residual n
+        residual(tmp1, ui, fi, n, aa, bb, cc, dd, rr, nu);      // tmp1 <- residual(u, f, n) - residual n
         restriction(tmp2, tmp1, n);      // tmp2 <- restriction(tmp2, n) - residual nnew
         if (lvl == maxlvl)
         {
@@ -68,7 +79,7 @@ void mg_inner(double** u, double** f,
         for (i = 0; i < n; ++i) ui[i] += tmp1[i];
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, fi, dx, n);
+            gauss_seidel(ui, unew, fi, n, aa, bb, cc, dd, rr, nu);
         }
     }
     // Output should be in u[lvl]!
