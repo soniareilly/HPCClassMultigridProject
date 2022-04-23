@@ -52,7 +52,7 @@ void mg_inner(double** u, double** f,
     int nnew = n/2;
     double dx2 = 2*dx;
 
-    double* unew = (double *) calloc(sizeof(double), (n+2)*(n+2));
+    double* unew = (double *) calloc(sizeof(double), (n+1)*(n+1));
 
     // Loop over shape -- shape == 1 is V-cycle, shape == 2 is W-cycle
     for (sh = 0; sh < shape; ++sh)
@@ -73,7 +73,7 @@ void mg_inner(double** u, double** f,
         } else 
         {
             // Multigrid should output in 1st arg with same dimension as input
-            mg_inner(u, f, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape); // r <- mg(stuff)
+            mg_inner(u, f, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape, dt, v1, v2, nu); // r <- mg(stuff)
         }
         prolongation(tmp1, u[lvl+1], nnew);  // up <- prolongation(u, nnew)
         for (i = 0; i < n; ++i) ui[i] += tmp1[i];
