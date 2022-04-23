@@ -33,9 +33,9 @@ void mg_inner(double* up, double* u,
             {
                 gauss_seidel(u, fi, dx2, nnew);
             }
+            // Multigrid should output in up a u of the same dimension as it was given
+            mg_inner(u, up, f, r, dx2, nnew, lvl+1, maxlvl, shape); // u <- mg(stuff)
         }
-        // Multigrid should output in up a u of the same dimension as it was given
-        mg_inner(u, up, f, r, dx2, nnew, lvl+1, maxlvl, shape); // u <- mg(stuff)
         prolongation(up, u, nnew);  // up <- prolongation(u, nnew)
         for (iter = 0; iter < NITER; ++iter)
         {
