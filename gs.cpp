@@ -5,16 +5,16 @@
 #include "gs.h"
 
 // functions for computing coefficients for LHS (and RHS)
-double r(double h, double k) {
+inline double r(double h, double k) {
     return 1.0/2*k/(h*h);
 }
 
 
-double a(double v, double nu, double h, double r) {
+inline double a(double v, double nu, double h, double r) {
     return r*(-v*h/2.0+nu);
 }
 
-double b(double v, double nu, double h, double r) {
+inline double b(double v, double nu, double h, double r) {
     return r*(v*h/2.0+nu);
 }
 
@@ -22,7 +22,8 @@ double b(double v, double nu, double h, double r) {
 // compute rhs with u
 void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double rr, double nu, double h) {
     // k: time step (dt)
-    // h: spatial discretizaiton step (dx/dy)
+    // h: spatial discretization step (dx=dy)
+    // r: dt/(2*dx*dx)
 
     double aa,bb,cc,dd; // LHS coeffficients
 
@@ -41,7 +42,8 @@ void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double 
 
 void residual(double *res, double *u, double *rhs, long n, double *v1, double *v2, double rr, double nu, double h) {
     // k: time step (dt)
-    // h: spatial discretizaiton step (dx/dy)
+    // h: spatial discretization step (dx=dy)
+    // r: dt/(2*dx*dx)
 
     double aa,bb,cc,dd; // LHS coeffficients
 
@@ -73,7 +75,8 @@ double compute_norm(double *res, long n) {
 
 void gauss_seidel(double *u, double *unew, double *rhs, long n, double *v1, double *v2, double rr, double nu, double h) {
     // k: time step (dt)
-    // h: spatial discretizaiton step (dx/dy)
+    // h: spatial discretization step (dx=dy)
+    // r: dt/(2*dx*dx)
 
     double aa,bb,cc,dd; // LHS coeffficients
 

@@ -82,14 +82,14 @@ nu                       - diffusion parameter
         {
             // Explicit solve for du = A\r
             exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
-            for (i = 0; i < nnew+1; ++i)  tmp2[i] += tmp1[i];
+            for (i = 0; i < (nnew+1)*(nnew+1); ++i)  tmp2[i] += tmp1[i];
         } else 
         {
             // Multigrid should output in 1st arg with same dimension as input
             mg_inner(u, rhs, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape, dt, v1, v2, nu); // r <- mg(stuff)
         }
         prolongation(tmp1, u[lvl+1], nnew);  // up <- prolongation(u, nnew)
-        for (i = 0; i < n+1; ++i) ui[i] += tmp1[i];
+        for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp1[i];
         for (iter = 0; iter < NITER; ++iter)
         {
             gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, rr, nu, dx);
@@ -104,7 +104,10 @@ void timestepper(double* uT, double* u0, double* v1, double* v2, double* rhs,
     // Outputs the solution u after performing the timestepping starting with u0
     // n is the dimension of u0, v1, v2, the finest n
     // declare towers
-    double *utow[maxlvl]; double *v1tow[maxlvl]; double *v2tow[maxlvl]; double *rhstow[maxlvl];
+    double *utow[maxlvl]; 
+    double *v1tow[maxlvl]; 
+    double *v2tow[maxlvl]; 
+    double *rhstow[maxlvl];
     // copy u0
     double* u = (double*) malloc((n+1)*(n+1)*sizeof(double));
     for (int i=0; i<n+1; i++){
@@ -126,30 +129,49 @@ void timestepper(double* uT, double* u0, double* v1, double* v2, double* rhs,
         rhstow[i] = (double*) calloc(ni*ni, sizeof(double));
     }
 
+    double *tmp1, *tmp2;
+    tmp1 = (double *) malloc((n+1)*(n+1)*sizeof(double));
+    tmp2 = (double *) malloc((n+1)*(n+1)*sizeof(double));
+
     // iterate
+    double rr = r(dx, dt);
     for (int iter = 0; iter < (int) T/dt; iter++){
-        mg_outer(utow, v1tow, v2tow, rhstow, nu, maxlvl, n, dt, dx, tol, shape); // utow <- mg_outer(stuff)
+        compute_rhs(rhstow[0], utow[0], n+1, v1tow[0], v2tow[0], rr, nu, dx);
+        mg_outer(utow, v1tow, v2tow, rhstow, tmp1, tmp2, nu, maxlvl, n, dt, dx, tol, shape); // utow <- mg_outer(stuff)
+    }
+
+    free(tmp1);
+    free(tmp2);
+    for (int i = 0; i < maxlvl; ++i)
+    {
+        free(utow[lvl]);
+        free(rhstow[lvl]);
+        free(v1tow[lvl]);
+        free(v2tow[lvl]);
     }
 }
 
-const long MAX_ITER = 50; // maximum number of v- or w-cycles
+const long MAX_CYCLE = 50; // maximum number of v- or w-cycles
 
-void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, double nu, int maxlvl, int n, double dt, double dx, double tol, int shape) {
+void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, 
+              double* tmp1, double* tmp2,
+              double nu, int maxlvl, int n, 
+              double dt, double dx, double tol, int shape) {
 
-    double *tmp1, *tmp2; // residual vectors
     double res_norm, res0_norm, tol = 1e-6; // residual norm and tolerance
-    tmp1 = (double *) malloc((n+1)*(n+1)*sizeof(double));
-    tmp2 = (double *) malloc((n+1)*(n+1)*sizeof(double));
 
     double rr = r(dx,dt);
     residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
     res_norm = res0_norm = compute_norm(tmp1,n);
 
-    for (long iter = 0; iter < MAX_ITER && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
+    for (long iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
 
         mg_inner(utow, rhstow, v1tow, v2tow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, nu);
-        res_norm = compute_norm(tmp1,n); // update residual norm
-
+        // This is risky as tmp1 holds a slightly outdated residual
+        //res_norm = compute_norm(tmp1,n); 
+        // Perhaps better to recalculate
+        residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
+        res_norm = compute_norm(tmp1,n);
     }
 
 }
@@ -158,10 +180,22 @@ int main(){
     // define N and calculate maxlvl
     // define v and nu
     // initialize u to some function
+    int N = 1024;
+    int maxlvl = 5; // n = 32 seems exactly solvable
+    double nu = 1e-2; // chosen at random
+    
+    double *u, *v1, *v2;
+    u  = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    v1 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    v2 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
 
     // initialize rhs by calling compute_rhs(...) from gs.cpp
 
     // call timestepper
+
+    free(u);
+    free(v1);
+    free(v2);
 }
 
 // allocate v1, v2, u, rhs
