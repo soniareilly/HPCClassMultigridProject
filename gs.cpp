@@ -58,6 +58,19 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
     }
 }
 
+
+double compute_norm(double *res, long n) {
+
+    double tmp = 0.0;
+
+    for (long i = 1; i < n; i++){
+        for (long j = 1; j < n; j++) {
+            tmp += res[i*(n+1)+j] * res[i*(n+1)+j];
+        }
+    }
+    return sqrt(tmp);
+}
+
 void gauss_seidel(double *u, double *unew, double *rhs, long n, double *v1, double *v2, double rr, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretizaiton step (dx/dy)

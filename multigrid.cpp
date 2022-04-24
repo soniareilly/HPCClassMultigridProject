@@ -85,7 +85,7 @@ void mg_inner(double** u, double** rhs,
 }
 
 void timestepper(double* uT, double* u0, double* v1, double* v2, double* rhs,
-                double nu, int maxlvl, int n, double dt, double T){
+                double nu, int maxlvl, int n, double dt, double T, double dx, double tol, int shape){
     // Outputs the solution u after performing the timestepping starting with u0
     // n is the dimension of u0, v1, v2, the finest n
     // declare towers
@@ -108,8 +108,30 @@ void timestepper(double* uT, double* u0, double* v1, double* v2, double* rhs,
 
     // iterate
     for (int iter = 0; iter < (int) T/dt; iter++){
-        mg_outer(utow, v1tow, v2tow, nu, maxlvl, n, dt); // utow <- mg_outer(stuff)
+        mg_outer(utow, v1tow, v2tow, rhstow, nu, maxlvl, n, dt, dx, tol, shape); // utow <- mg_outer(stuff)
     }
+}
+
+const long MAX_ITER = 50; // maximum number of v- or w-cycles
+
+void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, double nu, int maxlvl, int n, double dt, double dx, double tol, int shape) {
+
+    double *tmp1, *tmp2; // residual vectors
+    double res_norm, res0_norm, tol = 1e-6; // residual norm and tolerance
+
+    double rr = r(dx,dt);
+    residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
+    res_norm = res0_norm = compute_norm(tmp1,n);
+    
+    tmp2 = (double *) malloc((n+1)*sizeof(double));
+
+    for (long iter = 0; iter < MAX_ITER && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
+
+        mg_inner(utow, rhstow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, v1tow, v2tow, nu);
+        res_norm = compute_norm(tmp1,n); // update residual norm
+
+    }
+
 }
 
 int main(){

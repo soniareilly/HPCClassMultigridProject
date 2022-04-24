@@ -1,7 +1,10 @@
-// function headers for Gauss-Seidel and computing residuals
+// function headers for computing residuals
 
 void residual(double *res, double *u, double *f, long n, double *v1, double *v2, double rr, double nu, double h);
 
+double compute_norm(double *res, long n) ;
+
+// function headers for Gauss-Seidel
 void gauss_seidel(double *u, double *unew, double *f, long n, double *v1, double *v2, double rr, double nu, double h);
 
 // function headers for computing LHS and RHS coefficients
