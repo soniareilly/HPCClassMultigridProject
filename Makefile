@@ -10,7 +10,8 @@ link2: multigrid.cpp compile
 	g++ -c $< -O3
 
 compile: gs.o multigrid.o
-	g++ $^ -o multigrid -O3 -fopenmp
+	valgrind --leak-check=yes g++ $^ -o multigrid -O3 
+# -fopenmp
 
 clean:
 	-$(RM) $(TAR1) $(TAR2) *~
