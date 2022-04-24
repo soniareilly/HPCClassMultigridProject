@@ -116,7 +116,7 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
               double nu, int maxlvl, int n, 
               double dt, double dx, double tol, int shape) {
 
-    double res_norm, res0_norm, tol = 1e-6; // residual norm and tolerance
+    double res_norm, res0_norm; // residual norm and tolerance
 
     double rr = r(dx,dt);
     residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
