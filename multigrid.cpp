@@ -61,7 +61,7 @@ nu                       - diffusion parameter
         // I don't know how many to use; experiment!
     
     // compute coefficient for LHS and RHS
-    double rr = 1.0/2*dt/(dx*dx); //r(dx,dt); but r isn't defined in this scope
+    double rr = r(dx,dt);
 
     double *ui = u[lvl];
     double *rhsi = rhs[lvl];
