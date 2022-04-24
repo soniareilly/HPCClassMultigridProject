@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 #include "gs.h"       // Gauss-Seidel header
 
 #define PI 3.1415926535897932
@@ -78,11 +79,11 @@ nu                       - diffusion parameter
         }
         residual(tmp1, ui, rhsi, n, v1i, v2i, dt, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
         restriction(tmp2, tmp1, n);      // tmp2 <- restriction(tmp1, n) - residual nnew
-        if (lvl == maxlvl)
+        if (lvl == maxlvl-1)
         {
             // Explicit solve for du = A\r
             //exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
-            double res_exact = 1.0; int i = 0;
+            double res_exact = 1.0; i = 0;
             while (i < 1000 && res_exact > 1e-5){
                 gauss_seidel(tmp1, tmp2, rhsi, nnew, v1i, v2i, dt, nu, dx); // tmp1 <- gs(stuff)
                 for (int j = 0; j < (nnew+1)*(nnew+1); j++) tmp2[j] = tmp1[j];
@@ -118,6 +119,7 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
 
     residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
     res_norm = res0_norm = compute_norm(tmp1,n);
+    printf("Initial Residual: %f\n", res0_norm);
 
     for (long iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
 
@@ -127,6 +129,11 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
         // Perhaps better to recalculate
         residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
         res_norm = compute_norm(tmp1,n);
+
+        if (0 == (iter % 10)) {
+            printf("[Iter %ld] Residual norm: %2.8f\n", iter, res_norm);
+        }
+
     }
 
 }
@@ -141,14 +148,18 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     double *v1tow[maxlvl]; 
     double *v2tow[maxlvl]; 
     double *rhstow[maxlvl];
-    // copy u0
-    double* u = (double*) malloc((n+1)*(n+1)*sizeof(double));
-    for (int i=0; i<n+1; i++){
-        u[i] = u0[i];
-    }
+    
     // initialize top levels of towers
-    utow[0] = u; v1tow[0] = v1; v2tow[0] = v2; 
+    // utow[0] = u0; v1tow[0] = v1; v2tow[0] = v2; 
+    utow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
+    v1tow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
+    v2tow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
     rhstow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
+    
+    memcpy(utow[0], u0, (n+1)*(n+1)*sizeof(double));
+    memcpy(v1tow[0], v1, (n+1)*(n+1)*sizeof(double));
+    memcpy(v2tow[0], v2, (n+1)*(n+1)*sizeof(double));
+
     int ni = n+1;
     for (int i = 1; i < maxlvl; i++){
         ni = (n>>1) + 1;
@@ -168,10 +179,13 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     tmp2 = (double *) malloc((n+1)*(n+1)*sizeof(double));
 
     // iterate
-    for (int iter = 0; iter < (int) T/dt; iter++){
+    for (int iter = 0; iter < (int) (T/dt); iter++){
         compute_rhs(rhstow[0], utow[0], n+1, v1tow[0], v2tow[0], dt, nu, dx);
         mg_outer(utow, v1tow, v2tow, rhstow, tmp1, tmp2, nu, maxlvl, n, dt, dx, tol, shape); // utow <- mg_outer(stuff)
     }
+
+    // update uT
+    memcpy(uT, utow[0], (n+1)*(n+1)*sizeof(double));
 
     free(tmp1);
     free(tmp2);
@@ -188,7 +202,7 @@ int main(){
     // define N and calculate maxlvl
     // define v and nu
     // initialize u to some function
-    int N = 1024;
+    int N = 256;
     double dx = 1.0/N;
     int maxlvl = 5; // n = 32 seems exactly solvable
     double nu = 1e-2; // chosen at random
