@@ -88,7 +88,7 @@ nu                       - diffusion parameter
         } else 
         {
             // Multigrid should output in 1st arg with same dimension as input
-            mg_inner(u, rhs, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape, dt, v1, v2, nu); // r <- mg(stuff)
+            mg_inner(u, rhs, v1, v2, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape, dt, nu); // r <- mg(stuff)
         }
         prolongation(tmp1, u[lvl+1], nnew);  // up <- prolongation(u, nnew)
         for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp1[i];
@@ -148,10 +148,10 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     free(tmp2);
     for (int i = 0; i < maxlvl; ++i)
     {
-        free(utow[lvl]);
-        free(rhstow[lvl]);
-        free(v1tow[lvl]);
-        free(v2tow[lvl]);
+        free(utow[i]);
+        free(rhstow[i]);
+        free(v1tow[i]);
+        free(v2tow[i]);
     }
 }
 
