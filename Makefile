@@ -4,13 +4,13 @@ TAR2 = $(wildcard *.o)
 all: link1
 
 link1: gs.cpp link2
-	g++ -c $< -O3
+	g++ -c $< -O0
 
 link2: multigrid.cpp compile
-	g++ -c $< -O3
+	g++ -c $< -O0
 
 compile: gs.o multigrid.o
-	valgrind --leak-check=yes g++ $^ -o multigrid -O3 
+	g++ $^ -o multigrid -O0 -g
 # -fopenmp
 
 clean:
