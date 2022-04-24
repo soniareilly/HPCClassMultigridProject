@@ -79,11 +79,19 @@ nu                       - diffusion parameter
 
         }
         residual(tmp1, ui, rhsi, n, v1i, v2i, rr, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
-        restriction(tmp2, tmp1, n);      // tmp2 <- restriction(tmp2, n) - residual nnew
+        restriction(tmp2, tmp1, n);      // tmp2 <- restriction(tmp1, n) - residual nnew
         if (lvl == maxlvl)
         {
             // Explicit solve for du = A\r
-            exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
+            //exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
+            double res_exact = 1.0; int i = 0;
+            while (i < 1000 && res_exact > 1e-5){
+                gauss_seidel(tmp1, tmp2, rhsi, nnew, v1i, v2i, rr, nu, dx); // tmp1 <- gs(stuff)
+                for (int j = 0; j < (nnew+1)*(nnew+1); j++) tmp2[j] = tmp1[j];
+                residual(tmp1, tmp2, rhsi, nnew, v1i, v2i, rr, nu, dx);
+                res_exact = compute_norm(tmp1, nnew);
+                i++;
+            }
             prolongation(tmp2, tmp1, nnew);  // up <- prolongation(u, nnew)
         } else 
         {

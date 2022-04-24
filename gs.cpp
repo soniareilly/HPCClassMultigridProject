@@ -73,7 +73,7 @@ double compute_norm(double *res, long n) {
     return sqrt(tmp);
 }
 
-void gauss_seidel(double *u, double *unew, double *rhs, long n, double *v1, double *v2, double rr, double nu, double h) {
+void gauss_seidel(double *unew, double *u, double *rhs, long n, double *v1, double *v2, double rr, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretization step (dx=dy)
     // r: dt/(2*dx*dx)
