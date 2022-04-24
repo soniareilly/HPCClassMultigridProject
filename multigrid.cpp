@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <math.h>
-//#include "prolres.h"  // Prolongation + restriction header
 #include "gs.h"       // Gauss-Seidel header
 
 // u is row major
