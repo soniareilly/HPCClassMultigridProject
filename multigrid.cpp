@@ -84,14 +84,14 @@ nu                       - diffusion parameter
         {
             // Explicit solve for du = A\r
             exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
-            for (i = 0; i < (nnew+1)*(nnew+1); ++i)  tmp2[i] += tmp1[i];
+            prolongation(tmp2, tmp1, nnew);  // up <- prolongation(u, nnew)
         } else 
         {
             // Multigrid should output in 1st arg with same dimension as input
             mg_inner(u, rhs, v1, v2, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape, dt, nu); // r <- mg(stuff)
+            prolongation(tmp2, u[lvl+1], nnew);  // up <- prolongation(u, nnew)
         }
-        prolongation(tmp1, u[lvl+1], nnew);  // up <- prolongation(u, nnew)
-        for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp1[i];
+        for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp2[i];
         for (iter = 0; iter < NITER; ++iter)
         {
             gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, rr, nu, dx);
