@@ -59,9 +59,7 @@ nu                       - diffusion parameter
     int i, iter, sh;
     int NITER = 3; //number of Gauss-Seidel iterations
         // I don't know how many to use; experiment!
-    
-    // compute coefficient for LHS and RHS
-    double rr = r(dx,dt);
+
 
     double *ui = u[lvl];
     double *rhsi = rhs[lvl];
@@ -75,10 +73,10 @@ nu                       - diffusion parameter
     {
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, rr, nu, dx);
+            gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, dt, nu, dx);
 
         }
-        residual(tmp1, ui, rhsi, n, v1i, v2i, rr, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
+        residual(tmp1, ui, rhsi, n, v1i, v2i, dt, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
         restriction(tmp2, tmp1, n);      // tmp2 <- restriction(tmp1, n) - residual nnew
         if (lvl == maxlvl)
         {
@@ -86,9 +84,9 @@ nu                       - diffusion parameter
             //exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
             double res_exact = 1.0; int i = 0;
             while (i < 1000 && res_exact > 1e-5){
-                gauss_seidel(tmp1, tmp2, rhsi, nnew, v1i, v2i, rr, nu, dx); // tmp1 <- gs(stuff)
+                gauss_seidel(tmp1, tmp2, rhsi, nnew, v1i, v2i, dt, nu, dx); // tmp1 <- gs(stuff)
                 for (int j = 0; j < (nnew+1)*(nnew+1); j++) tmp2[j] = tmp1[j];
-                residual(tmp1, tmp2, rhsi, nnew, v1i, v2i, rr, nu, dx);
+                residual(tmp1, tmp2, rhsi, nnew, v1i, v2i, dt, nu, dx);
                 res_exact = compute_norm(tmp1, nnew);
                 i++;
             }
@@ -102,7 +100,7 @@ nu                       - diffusion parameter
         for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp2[i];
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, rr, nu, dx);
+            gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, dt, nu, dx);
         }
     }
     // Output should be in u[lvl]!
@@ -118,8 +116,7 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
 
     double res_norm, res0_norm; // residual norm and tolerance
 
-    double rr = r(dx,dt);
-    residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
+    residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
     res_norm = res0_norm = compute_norm(tmp1,n);
 
     for (long iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
@@ -128,7 +125,7 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
         // This is risky as tmp1 holds a slightly outdated residual
         //res_norm = compute_norm(tmp1,n); 
         // Perhaps better to recalculate
-        residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
+        residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
         res_norm = compute_norm(tmp1,n);
     }
 
@@ -154,7 +151,7 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     rhstow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
     int ni = n+1;
     for (int i = 1; i < maxlvl; i++){
-        ni = n>>1 + 1;
+        ni = (n>>1) + 1;
         // lower levels of utow are unitialized
         utow[i] = (double*) malloc(ni*ni* sizeof(double));
         // vtow has the progressive restrictions
@@ -171,9 +168,8 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     tmp2 = (double *) malloc((n+1)*(n+1)*sizeof(double));
 
     // iterate
-    double rr = r(dx, dt);
     for (int iter = 0; iter < (int) T/dt; iter++){
-        compute_rhs(rhstow[0], utow[0], n+1, v1tow[0], v2tow[0], rr, nu, dx);
+        compute_rhs(rhstow[0], utow[0], n+1, v1tow[0], v2tow[0], dt, nu, dx);
         mg_outer(utow, v1tow, v2tow, rhstow, tmp1, tmp2, nu, maxlvl, n, dt, dx, tol, shape); // utow <- mg_outer(stuff)
     }
 

@@ -20,12 +20,13 @@ inline double b(double v, double nu, double h, double r) {
 
 
 // compute rhs with u
-void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double rr, double nu, double h) {
+void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double k, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretization step (dx=dy)
     // r: dt/(2*dx*dx)
 
-    double aa,bb,cc,dd; // LHS coeffficients
+    double aa,bb,cc,dd,rr; // LHS coeffficients
+    rr = r(h,k);
 
     #pragma omp parallel
     #pragma omp for collapse(2)
@@ -40,12 +41,13 @@ void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double 
     }
 }
 
-void residual(double *res, double *u, double *rhs, long n, double *v1, double *v2, double rr, double nu, double h) {
+void residual(double *res, double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretization step (dx=dy)
     // r: dt/(2*dx*dx)
 
-    double aa,bb,cc,dd; // LHS coeffficients
+    double aa,bb,cc,dd,rr; // LHS coeffficients
+    rr = r(h,k);
 
     #pragma omp parallel
     #pragma omp for collapse(2)
@@ -73,12 +75,13 @@ double compute_norm(double *res, long n) {
     return sqrt(tmp);
 }
 
-void gauss_seidel(double *unew, double *u, double *rhs, long n, double *v1, double *v2, double rr, double nu, double h) {
+void gauss_seidel(double *unew, double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretization step (dx=dy)
     // r: dt/(2*dx*dx)
 
-    double aa,bb,cc,dd; // LHS coeffficients
+    double aa,bb,cc,dd,rr; // LHS coeffficients
+    rr = r(h,k);
 
     #pragma omp parallel
     { 
