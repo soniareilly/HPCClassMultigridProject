@@ -19,10 +19,8 @@ double b(double v, double nu, double h, double r) {
 }
 
 
-// compute rhs as f
-// void(double *f, double *u)
-
-void residual(double *res, double *u, double *f, long n, double *v1, double *v2, double rr, double nu, double h) {
+// compute rhs with u
+void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double rr, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretizaiton step (dx/dy)
 
@@ -36,12 +34,31 @@ void residual(double *res, double *u, double *f, long n, double *v1, double *v2,
             bb = b(v2[i*(n+1)+j],nu,h,rr);
             cc = a(v1[i*(n+1)+j],nu,h,rr);
             dd = b(v1[i*(n+1)+j],nu,h,rr);
-            res[i*(n+1)+j] = f[i*(n+1)+j] - ((1-4.0*rr*nu)*u[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)]);
+            rhs[i*(n+1)+j] = (1+4.0*rr*nu)*u[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)];
         }
     }
 }
 
-void gauss_seidel(double *u, double *unew, double *f, long n, double *v1, double *v2, double rr, double nu, double h) {
+void residual(double *res, double *u, double *rhs, long n, double *v1, double *v2, double rr, double nu, double h) {
+    // k: time step (dt)
+    // h: spatial discretizaiton step (dx/dy)
+
+    double aa,bb,cc,dd; // LHS coeffficients
+
+    #pragma omp parallel
+    #pragma omp for collapse(2)
+    for (long i = 1; i < n; i++){
+        for (long j = 1; j < n; j++) {
+            aa = a(v2[i*(n+1)+j],nu,h,rr);
+            bb = b(v2[i*(n+1)+j],nu,h,rr);
+            cc = a(v1[i*(n+1)+j],nu,h,rr);
+            dd = b(v1[i*(n+1)+j],nu,h,rr);
+            res[i*(n+1)+j] = rhs[i*(n+1)+j] - ((1-4.0*rr*nu)*u[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)]);
+        }
+    }
+}
+
+void gauss_seidel(double *u, double *unew, double *rhs, long n, double *v1, double *v2, double rr, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretizaiton step (dx/dy)
 
@@ -57,7 +74,7 @@ void gauss_seidel(double *u, double *unew, double *f, long n, double *v1, double
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
-                    unew[i*(n+1)+j] = (f[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
+                    unew[i*(n+1)+j] = (rhs[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
                 }
                 
         }
@@ -69,7 +86,7 @@ void gauss_seidel(double *u, double *unew, double *f, long n, double *v1, double
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
-                    unew[i*(n+1)+j] = (f[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
+                    unew[i*(n+1)+j] = (rhs[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
                 }
                 
         }
@@ -82,7 +99,7 @@ void gauss_seidel(double *u, double *unew, double *f, long n, double *v1, double
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
-                    unew[i*(n+1)+j] = (f[i*(n+1)+j] + cc*unew[(i-1)*(n+1)+j] + aa*unew[i*(n+1)+(j-1)] + dd*unew[(i+1)*(n+1)+j] + bb*unew[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
+                    unew[i*(n+1)+j] = (rhs[i*(n+1)+j] + cc*unew[(i-1)*(n+1)+j] + aa*unew[i*(n+1)+(j-1)] + dd*unew[(i+1)*(n+1)+j] + bb*unew[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
                 }
         }
 
@@ -93,7 +110,7 @@ void gauss_seidel(double *u, double *unew, double *f, long n, double *v1, double
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
-                    unew[i*(n+1)+j] = (f[i*(n+1)+j] + cc*unew[(i-1)*(n+1)+j] + aa*unew[i*(n+1)+(j-1)] + dd*unew[(i+1)*(n+1)+j] + bb*unew[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
+                    unew[i*(n+1)+j] = (rhs[i*(n+1)+j] + cc*unew[(i-1)*(n+1)+j] + aa*unew[i*(n+1)+(j-1)] + dd*unew[(i+1)*(n+1)+j] + bb*unew[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
                 }
         }
     }
