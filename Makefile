@@ -1,7 +1,18 @@
-all: gs multigrid
+TAR1 = $(basename $(wildcard *.cpp))
+TAR2 = $(wildcard *.o)
 
-gs: gs.cpp
-	g++ gs.cpp -o gs -O3 -fopenmp
+all: link1
 
-multigrid: multigrid.cpp
-	g++ multigrid.cpp -o multigrid -O3 -fopenmp
+link1: gs.cpp link2
+	g++ -c $< -O3
+
+link2: multigrid.cpp compile
+	g++ -c $< -O3
+
+compile: gs.o multigrid.o
+	g++ $^ -o multigrid -O3 -fopenmp
+
+clean:
+	-$(RM) $(TAR1) $(TAR2) *~
+
+.PHONY: all, clean
