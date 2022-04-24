@@ -29,11 +29,30 @@ void restriction(double* u, double* up, int n){
 }
 
 void mg_inner(double** u, double** rhs, 
+              double** v1, double** v2,
               double* tmp1, double* tmp2, 
               double dx, int n, 
               int lvl, int maxlvl, 
-              int shape, double dt, double** v1, double** v2, double nu)
+              int shape, double dt, double nu)
 {
+/*
+u[maxlvl][(n+1)*(n+1)]   - tower of arrays of u and its residual at successively 
+                         coarsening grids
+rhs[maxlvl][(n+1)*(n+1)] - same thing, but for the right hand side of the linear system
+v1[maxlvl][(n+1)*(n+1)]  - same for x component of velocity at all grids
+v2[maxlvl][(n+1)*(n+1)]  - same for y component of velocity at all grids
+tmp1[(n+1)*(n+1)]        - Spare computation space, 1
+tmp2[(n+1)*(n+1)]        - Spare computation space, 2
+dx                       - grid spacing at current level
+n                        - n+1 cells, counting ghost nodes, in each dimension (so fields
+                           are (n+1)*(n+1) in length)
+lvl                      - Current level in the multigrid recursion
+maxlvl                   - Maximum multigrid recursion depth
+shape                    - Shape of multigrid cycles (shape=1 --> V-cycle, 2 --> W-cycle)
+dt                       - timestep
+nu                       - diffusion parameter
+*/
+
     // Inner function for multigrid solver
     int i, iter, sh;
     int NITER = 50; //number of Gauss-Seidel iterations
@@ -49,14 +68,12 @@ void mg_inner(double** u, double** rhs,
     int nnew = n/2;
     double dx2 = 2*dx;
 
-    double* unew = (double *) calloc(sizeof(double), (n+1)*(n+1));
-
     // Loop over shape -- shape == 1 is V-cycle, shape == 2 is W-cycle
     for (sh = 0; sh < shape; ++sh)
     {
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, unew, rhsi, n, v1i, v2i, rr, nu, dx);
+            gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, rr, nu, dx);
 
         }
         residual(tmp1, ui, rhsi, n, v1i, v2i, rr, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
@@ -65,20 +82,19 @@ void mg_inner(double** u, double** rhs,
         {
             // Explicit solve for du = A\r
             exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
-            for (i = 0; i < nnew; ++i)  tmp2[i] += tmp1[i];
+            for (i = 0; i < nnew+1; ++i)  tmp2[i] += tmp1[i];
         } else 
         {
             // Multigrid should output in 1st arg with same dimension as input
             mg_inner(u, rhs, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape, dt, v1, v2, nu); // r <- mg(stuff)
         }
         prolongation(tmp1, u[lvl+1], nnew);  // up <- prolongation(u, nnew)
-        for (i = 0; i < n; ++i) ui[i] += tmp1[i];
+        for (i = 0; i < n+1; ++i) ui[i] += tmp1[i];
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, unew, rhsi, n, v1i, v2i, rr, nu, dx);
+            gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, rr, nu, dx);
         }
     }
-    free(unew);
     // Output should be in u[lvl]!
     return;
 }
@@ -96,13 +112,18 @@ void timestepper(double* uT, double* u0, double* v1, double* v2, double* rhs,
     }
     // initialize top levels of towers
     utow[0] = u; v1tow[0] = v1; v2tow[0] = v2; rhstow[0] = rhs;
+    int ni = n+1;
     for (int i = 1; i < maxlvl; i++){
-        // lower levels are unitialized
-        utow[i] = (double*) malloc(((n>>i)+1)*((n>>i)+1)* sizeof(double));
-        v1tow[i] = (double*) malloc(((n>>i)+1)*((n>>i)+1)* sizeof(double));
-        v2tow[i] = (double*) malloc(((n>>i)+1)*((n>>i)+1)* sizeof(double));
+        ni = n>>1 + 1;
+        // lower levels of utow are unitialized
+        utow[i] = (double*) malloc(ni*ni* sizeof(double));
+        // vtow has the progressive restrictions
+        v1tow[i] = (double*) malloc(ni*ni* sizeof(double));
+        restriction(v1tow[i],v1tow[i-1],ni-1);
+        v2tow[i] = (double*) malloc(ni*ni* sizeof(double));
+        restriction(v2tow[i],v2tow[i-1],ni-1);
         // lower levels of rhs are just 0s
-        rhstow[i] = (double*) calloc(((n>>i)+1)*((n>>i)+1), sizeof(double));
+        rhstow[i] = (double*) calloc(ni*ni, sizeof(double));
     }
 
     // iterate
@@ -117,16 +138,16 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, do
 
     double *tmp1, *tmp2; // residual vectors
     double res_norm, res0_norm, tol = 1e-6; // residual norm and tolerance
+    tmp1 = (double *) malloc((n+1)*(n+1)*sizeof(double));
+    tmp2 = (double *) malloc((n+1)*(n+1)*sizeof(double));
 
     double rr = r(dx,dt);
     residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
     res_norm = res0_norm = compute_norm(tmp1,n);
-    
-    tmp2 = (double *) malloc((n+1)*sizeof(double));
 
     for (long iter = 0; iter < MAX_ITER && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
 
-        mg_inner(utow, rhstow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, v1tow, v2tow, nu);
+        mg_inner(utow, rhstow, v1tow, v2tow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, nu);
         res_norm = compute_norm(tmp1,n); // update residual norm
 
     }
