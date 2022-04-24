@@ -28,26 +28,24 @@ void restriction(double* u, double* up, int n){
     }
 }
 
-void mg_inner(double** u, double** f, 
+void mg_inner(double** u, double** rhs, 
               double* tmp1, double* tmp2, 
               double dx, int n, 
               int lvl, int maxlvl, 
-              int shape, double dt, double v1, double v2, double nu)
+              int shape, double dt, double** v1, double** v2, double nu)
 {
     // Inner function for multigrid solver
     int i, iter, sh;
-    double rr,aa,bb,cc,dd; // LHS and RHS coefficients
     int NITER = 50; //number of Gauss-Seidel iterations
         // I don't know how many to use; experiment!
-    // compute coefficients for LHS and RHS
-    rr = r(dx,dt);
-    aa = a(v2,nu,dx,rr);
-    bb = b(v2,nu,dx,rr);
-    cc = a(v1,nu,dx,rr);
-    dd = b(v1,nu,dx,rr);
+    
+    // compute coefficient for LHS and RHS
+    double rr = r(dx,dt);
 
     double *ui = u[lvl];
-    double *fi = f[lvl];
+    double *rhsi = rhs[lvl];
+    double *v1i = v1[lvl];
+    double *v2i = v2[lvl];
     int nnew = n/2;
     double dx2 = 2*dx;
 
@@ -58,11 +56,10 @@ void mg_inner(double** u, double** f,
     {
         for (iter = 0; iter < NITER; ++iter)
         {
-
-            gauss_seidel(ui, unew, fi, n, aa, bb, cc, dd, rr, nu);
+            gauss_seidel(ui, unew, rhsi, n, v1i, v2i, rr, nu, dx);
 
         }
-        residual(tmp1, ui, fi, n, aa, bb, cc, dd, rr, nu);      // tmp1 <- residual(u, f, n) - residual n
+        residual(tmp1, ui, rhsi, n, v1i, v2i, rr, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
         restriction(tmp2, tmp1, n);      // tmp2 <- restriction(tmp2, n) - residual nnew
         if (lvl == maxlvl)
         {
@@ -72,49 +69,76 @@ void mg_inner(double** u, double** f,
         } else 
         {
             // Multigrid should output in 1st arg with same dimension as input
-            mg_inner(u, f, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape, dt, v1, v2, nu); // r <- mg(stuff)
+            mg_inner(u, rhs, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape, dt, v1, v2, nu); // r <- mg(stuff)
         }
         prolongation(tmp1, u[lvl+1], nnew);  // up <- prolongation(u, nnew)
         for (i = 0; i < n; ++i) ui[i] += tmp1[i];
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, unew, fi, n, aa, bb, cc, dd, rr, nu);
+            gauss_seidel(ui, unew, rhsi, n, v1i, v2i, rr, nu, dx);
         }
     }
+    free(unew);
     // Output should be in u[lvl]!
     return;
 }
 
-void timestepper(double* uT, double* u0, double* v1, double* v2, 
-                double nu, int maxlvl, int n, double dt, double T){
+void timestepper(double* uT, double* u0, double* v1, double* v2, double* rhs,
+                double nu, int maxlvl, int n, double dt, double T, double dx, double tol, int shape){
     // Outputs the solution u after performing the timestepping starting with u0
     // n is the dimension of u0, v1, v2, the finest n
     // declare towers
-    double utow[maxlvl]; double v1tow[maxlvl]; double v2tow[maxlvl];
+    double *utow[maxlvl]; double *v1tow[maxlvl]; double *v2tow[maxlvl]; double *rhstow[maxlvl];
     // copy u0
     double* u = (double*) malloc((n+1)*(n+1)*sizeof(double));
     for (int i=0; i<n+1; i++){
         u[i] = u0[i];
     }
     // initialize top levels of towers
-    utow[0] = u; v1tow[0] = v1; v2tow[0] = v2;
+    utow[0] = u; v1tow[0] = v1; v2tow[0] = v2; rhstow[0] = rhs;
     for (int i = 1; i < maxlvl; i++){
         // lower levels are unitialized
         utow[i] = (double*) malloc(((n>>i)+1)*((n>>i)+1)* sizeof(double));
         v1tow[i] = (double*) malloc(((n>>i)+1)*((n>>i)+1)* sizeof(double));
         v2tow[i] = (double*) malloc(((n>>i)+1)*((n>>i)+1)* sizeof(double));
+        // lower levels of rhs are just 0s
+        rhstow[i] = (double*) calloc(((n>>i)+1)*((n>>i)+1), sizeof(double));
     }
 
     // iterate
     for (int iter = 0; iter < (int) T/dt; iter++){
-        mg_outer(utow, v1tow, v2tow, nu, maxlvl, n, dt); // utow <- mg_outer(stuff)
+        mg_outer(utow, v1tow, v2tow, rhstow, nu, maxlvl, n, dt, dx, tol, shape); // utow <- mg_outer(stuff)
     }
+}
+
+const long MAX_ITER = 50; // maximum number of v- or w-cycles
+
+void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, double nu, int maxlvl, int n, double dt, double dx, double tol, int shape) {
+
+    double *tmp1, *tmp2; // residual vectors
+    double res_norm, res0_norm, tol = 1e-6; // residual norm and tolerance
+
+    double rr = r(dx,dt);
+    residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
+    res_norm = res0_norm = compute_norm(tmp1,n);
+    
+    tmp2 = (double *) malloc((n+1)*sizeof(double));
+
+    for (long iter = 0; iter < MAX_ITER && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
+
+        mg_inner(utow, rhstow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, v1tow, v2tow, nu);
+        res_norm = compute_norm(tmp1,n); // update residual norm
+
+    }
+
 }
 
 int main(){
     // define N and calculate maxlvl
     // define v and nu
     // initialize u to some function
+
+    // initialize rhs by calling compute_rhs(...) from gs.cpp
 
     // call timestepper
 }
