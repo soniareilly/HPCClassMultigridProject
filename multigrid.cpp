@@ -2,6 +2,8 @@
 #include <math.h>
 #include "gs.h"       // Gauss-Seidel header
 
+#define PI 3.1415926535897932
+
 // u is row major
 
 void prolongation(double* up, double* u, int n){
@@ -99,8 +101,9 @@ nu                       - diffusion parameter
     return;
 }
 
-void timestepper(double* uT, double* u0, double* v1, double* v2, double* rhs,
-                double nu, int maxlvl, int n, double dt, double T, double dx, double tol, int shape){
+void timestepper(double* uT, double* u0, double* v1, double* v2,
+                double nu, int maxlvl, int n, double dt, double T, 
+                double dx, double tol, int shape){
     // Outputs the solution u after performing the timestepping starting with u0
     // n is the dimension of u0, v1, v2, the finest n
     // declare towers
@@ -114,7 +117,8 @@ void timestepper(double* uT, double* u0, double* v1, double* v2, double* rhs,
         u[i] = u0[i];
     }
     // initialize top levels of towers
-    utow[0] = u; v1tow[0] = v1; v2tow[0] = v2; rhstow[0] = rhs;
+    utow[0] = u; v1tow[0] = v1; v2tow[0] = v2; 
+    rhstow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
     int ni = n+1;
     for (int i = 1; i < maxlvl; i++){
         ni = n>>1 + 1;
@@ -181,26 +185,43 @@ int main(){
     // define v and nu
     // initialize u to some function
     int N = 1024;
+    double dx = 1.0/N;
     int maxlvl = 5; // n = 32 seems exactly solvable
     double nu = 1e-2; // chosen at random
     
-    double *u, *v1, *v2;
-    u  = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    double *uT, *u0, *v1, *v2;
+    uT = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    u0 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     v1 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     v2 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
-
-    // initialize rhs by calling compute_rhs(...) from gs.cpp
+    int i,j;
+    double kx = 4.0*PI;
+    double ky = 4.0*PI;
+    double x0 = 0.2, y0 = 0.4;
+    double sigma = 100.0;
+    for (i = 0; i < N+1; ++i)
+    {
+        for (j = 0; j < N+1; ++j)
+        {
+            // Let's hope that this Gaussian is sufficiently close to 0 at the edges...
+            u0[i*(N+1)+j] =  exp(sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
+            v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);
+            v2[i*(N+1)+j] =  kx*cos(kx*i*dx)*sin(ky*j*dx);
+        }
+    }
 
     // call timestepper
+    double dt = 0.001;  // Ah, we'll have to experiment with this one
+    double T  = 0.001;  // debug first, get ambitious later
+    double tol = 1e-6;
+    int shape = 1;      // V-cycles at first
+    timestepper(uT, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
 
-    free(u);
+    // Do something with output
+    printf("uT[0] = %f\n", uT[0]);
+
+    free(uT);
+    free(u0);
     free(v1);
     free(v2);
 }
-
-// allocate v1, v2, u, rhs
-
-// let Tanya initialize rhs
-
-// for loop calls mg_outer
-// pass in current u
