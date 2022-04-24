@@ -212,9 +212,9 @@ int main(){
 
     // call timestepper
     double dt = 0.001;  // Ah, we'll have to experiment with this one
-    double T  = 0.001;  // debug first, get ambitious later
+    double T  = 1*dt;   // debug first, get ambitious later
     double tol = 1e-6;
-    int shape = 1;      // V-cycles at first
+    int shape = 1;      // V-cycles
     timestepper(uT, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
 
     // Do something with output
