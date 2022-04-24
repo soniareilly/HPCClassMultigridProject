@@ -57,7 +57,7 @@ nu                       - diffusion parameter
 
     // Inner function for multigrid solver
     int i, iter, sh;
-    int NITER = 50; //number of Gauss-Seidel iterations
+    int NITER = 3; //number of Gauss-Seidel iterations
         // I don't know how many to use; experiment!
     
     // compute coefficient for LHS and RHS
@@ -107,6 +107,31 @@ nu                       - diffusion parameter
     }
     // Output should be in u[lvl]!
     return;
+}
+
+const long MAX_CYCLE = 50; // maximum number of v- or w-cycles
+
+void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, 
+              double* tmp1, double* tmp2,
+              double nu, int maxlvl, int n, 
+              double dt, double dx, double tol, int shape) {
+
+    double res_norm, res0_norm, tol = 1e-6; // residual norm and tolerance
+
+    double rr = r(dx,dt);
+    residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
+    res_norm = res0_norm = compute_norm(tmp1,n);
+
+    for (long iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
+
+        mg_inner(utow, rhstow, v1tow, v2tow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, nu);
+        // This is risky as tmp1 holds a slightly outdated residual
+        //res_norm = compute_norm(tmp1,n); 
+        // Perhaps better to recalculate
+        residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
+        res_norm = compute_norm(tmp1,n);
+    }
+
 }
 
 void timestepper(double* uT, double* u0, double* v1, double* v2,
@@ -161,31 +186,6 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
         free(v1tow[i]);
         free(v2tow[i]);
     }
-}
-
-const long MAX_CYCLE = 50; // maximum number of v- or w-cycles
-
-void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, 
-              double* tmp1, double* tmp2,
-              double nu, int maxlvl, int n, 
-              double dt, double dx, double tol, int shape) {
-
-    double res_norm, res0_norm, tol = 1e-6; // residual norm and tolerance
-
-    double rr = r(dx,dt);
-    residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
-    res_norm = res0_norm = compute_norm(tmp1,n);
-
-    for (long iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
-
-        mg_inner(utow, rhstow, v1tow, v2tow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, nu);
-        // This is risky as tmp1 holds a slightly outdated residual
-        //res_norm = compute_norm(tmp1,n); 
-        // Perhaps better to recalculate
-        residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], rr, nu, dx);
-        res_norm = compute_norm(tmp1,n);
-    }
-
 }
 
 int main(){
