@@ -76,7 +76,7 @@ nu                       - diffusion parameter
     {
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, dt, nu, dx);
+            gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
 
         }
         residual(tmp1, ui, rhsi, n, v1i, v2i, dt, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
@@ -87,7 +87,7 @@ nu                       - diffusion parameter
             //exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
             double res_exact = 1.0; i = 0;
             while (i < 1000 && res_exact > 1e-5){
-                gauss_seidel(tmp2, tmp1, rhsi, nnew, v1i, v2i, dt, nu, dx2); // tmp1 <- gs(stuff)
+                gauss_seidel(tmp2, rhsi, nnew, v1i, v2i, dt, nu, dx2); // tmp1 <- gs(stuff)
                 // for (int j = 0; j < (nnew+1)*(nnew+1); j++) tmp2[j] = tmp1[j];
                 residual(tmp1, tmp2, rhsi, nnew, v1i, v2i, dt, nu, dx);
                 res_exact = compute_norm(tmp1, nnew);
@@ -103,7 +103,7 @@ nu                       - diffusion parameter
         for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp2[i];
         for (iter = 0; iter < NITER; ++iter)
         {
-            gauss_seidel(ui, tmp1, rhsi, n, v1i, v2i, dt, nu, dx);
+            gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
         }
     }
     // Output should be in u[lvl]!
@@ -126,7 +126,7 @@ void mg_inner2(double *u, double *f, double *tmp1, double **v1, double **v2, dou
 
                        for (i=0; i<NITER; i++) {
 
-                           gauss_seidel(u, tmp1, f, n, v1i, v2i, dt, nu, dx);
+                           gauss_seidel(u, f, n, v1i, v2i, dt, nu, dx);
 
                        }
 
@@ -136,7 +136,7 @@ void mg_inner2(double *u, double *f, double *tmp1, double **v1, double **v2, dou
 
                        if (lvl == maxlvl-1) {
                            for (i=0; i<1000; i++) {
-                               gauss_seidel(eps, tmp1, fnew, nnew, v1i, v2i, dt, nu, dx2);
+                               gauss_seidel(eps, fnew, nnew, v1i, v2i, dt, nu, dx2);
                            }
                        }
                        else {
@@ -152,7 +152,7 @@ void mg_inner2(double *u, double *f, double *tmp1, double **v1, double **v2, dou
 
                        for (i=0; i<NITER; i++) {
 
-                           gauss_seidel(u, tmp1, f, n, v1i, v2i, dt, nu, dx);
+                           gauss_seidel(u, f, n, v1i, v2i, dt, nu, dx);
 
                        }
 

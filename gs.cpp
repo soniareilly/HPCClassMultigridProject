@@ -36,7 +36,7 @@ void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double 
             bb = b(v2[i*(n+1)+j],nu,h,rr);
             cc = a(v1[i*(n+1)+j],nu,h,rr);
             dd = b(v1[i*(n+1)+j],nu,h,rr);
-            rhs[i*(n+1)+j] = (1+4.0*rr*nu)*u[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)];
+            rhs[i*(n+1)+j] = (1.0+4.0*rr*nu)*u[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)];
         }
     }
 }
@@ -57,7 +57,7 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
             bb = b(v2[i*(n+1)+j],nu,h,rr);
             cc = a(v1[i*(n+1)+j],nu,h,rr);
             dd = b(v1[i*(n+1)+j],nu,h,rr);
-            res[i*(n+1)+j] = rhs[i*(n+1)+j] - ((1-4.0*rr*nu)*u[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)]);
+            res[i*(n+1)+j] = rhs[i*(n+1)+j] - ((1.0-4.0*rr*nu)*u[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)]);
         }
     }
 }
@@ -75,7 +75,7 @@ double compute_norm(double *res, long n) {
     return sqrt(tmp);
 }
 
-void gauss_seidel(double *u, double *unew, double *rhs, long n, double *v1, double *v2, double k, double nu, double h) {
+void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretization step (dx=dy)
     // r: dt/(2*dx*dx)
@@ -93,7 +93,7 @@ void gauss_seidel(double *u, double *unew, double *rhs, long n, double *v1, doub
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
-                    unew[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
+                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
                 }
                 
         }
@@ -105,7 +105,7 @@ void gauss_seidel(double *u, double *unew, double *rhs, long n, double *v1, doub
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
-                    unew[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
+                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
                 }
                 
         }
@@ -118,7 +118,7 @@ void gauss_seidel(double *u, double *unew, double *rhs, long n, double *v1, doub
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
-                    unew[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*unew[(i-1)*(n+1)+j] - aa*unew[i*(n+1)+(j-1)] - dd*unew[(i+1)*(n+1)+j] - bb*unew[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
+                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
                 }
         }
 
@@ -129,13 +129,50 @@ void gauss_seidel(double *u, double *unew, double *rhs, long n, double *v1, doub
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
-                    unew[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*unew[(i-1)*(n+1)+j] - aa*unew[i*(n+1)+(j-1)] - dd*unew[(i+1)*(n+1)+j] - bb*unew[i*(n+1)+(j+1)])/(1-4.0*rr*nu);
+                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
                 }
         }
     }
-        double* utmp = u;
-        u = unew;
-        unew = utmp;
+        // double* utmp = u;
+        // u = unew;
+        // unew = utmp;
 
+
+}
+
+
+void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h) {
+
+    int i; int j;
+
+    double aa,bb,cc,dd,rr; // LHS coeffficients
+    rr = r(h,k);
+
+    // UPDATING RED POINTS
+    // here we're assuming top left is red
+    // interior
+    #pragma omp parallel for num_threads(N_thr) private(i,j)
+    for (i = 1; i < n; i++) {
+    	for (j = 2-i%2; j < n; j+=2) {
+            aa = a(v2[i*(n+1)+j],nu,h,rr);
+            bb = b(v2[i*(n+1)+j],nu,h,rr);
+            cc = a(v1[i*(n+1)+j],nu,h,rr);
+            dd = b(v1[i*(n+1)+j],nu,h,rr);
+            u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - dd*u[(i+1)*(n+1)+j] - aa*u[i*(n+1)+j-1] - bb*u[i*(n+1)+j+1])/(1.0-4.0*rr*nu);
+		}
+    }
+
+    // UPDATING BLACK POINTS
+    // interior
+    #pragma omp parallel for num_threads(N_thr) private(i,j)
+    for (i = 1; i < n; i++) {
+    	for (j = 1+i%2; j < n; j+=2) {
+            aa = a(v2[i*(n+1)+j],nu,h,rr);
+            bb = b(v2[i*(n+1)+j],nu,h,rr);
+            cc = a(v1[i*(n+1)+j],nu,h,rr);
+            dd = b(v1[i*(n+1)+j],nu,h,rr);
+            u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - dd*u[(i+1)*(n+1)+j] - aa*u[i*(n+1)+j-1] - bb*u[i*(n+1)+j+1])/(1.0-4.0*rr*nu);
+		}
+    }
 
 }
