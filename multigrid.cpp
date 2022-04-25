@@ -31,6 +31,8 @@ void restriction(double* u, double* up, int n){
     }
 }
 
+
+
 void mg_inner(double** u, double** rhs, 
               double** v1, double** v2,
               double* tmp1, double* tmp2, 
@@ -85,8 +87,8 @@ nu                       - diffusion parameter
             //exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
             double res_exact = 1.0; i = 0;
             while (i < 1000 && res_exact > 1e-5){
-                gauss_seidel(tmp1, tmp2, rhsi, nnew, v1i, v2i, dt, nu, dx); // tmp1 <- gs(stuff)
-                for (int j = 0; j < (nnew+1)*(nnew+1); j++) tmp2[j] = tmp1[j];
+                gauss_seidel(tmp2, tmp1, rhsi, nnew, v1i, v2i, dt, nu, dx2); // tmp1 <- gs(stuff)
+                // for (int j = 0; j < (nnew+1)*(nnew+1); j++) tmp2[j] = tmp1[j];
                 residual(tmp1, tmp2, rhsi, nnew, v1i, v2i, dt, nu, dx);
                 res_exact = compute_norm(tmp1, nnew);
                 i++;
@@ -108,6 +110,61 @@ nu                       - diffusion parameter
     return;
 }
 
+void mg_inner2(double *u, double *f, double *tmp1, double **v1, double **v2, double nu, double dx, double dt,
+               int shape, int lvl, int maxlvl, int n) {
+                   
+                   double* v1i = v1[lvl];
+                   double* v2i = v2[lvl];
+                   int NITER = 3;
+                   int nnew = n/2;
+                   int dx2 = dx*2;
+                   int i;
+                   double* fnew = (double *) malloc((nnew+1)*(nnew+1)*sizeof(double));
+                   double* eps = (double *) calloc((nnew+1)*(nnew+1), sizeof(double));
+
+                   for (int sh=0; sh<shape; sh++) {
+
+                       for (i=0; i<NITER; i++) {
+
+                           gauss_seidel(u, tmp1, f, n, v1i, v2i, dt, nu, dx);
+
+                       }
+
+                       residual(tmp1, u, f, n, v1i, v2i, dt, nu, dx); 
+                       restriction(fnew, tmp1, n); 
+                    //    memcpy(f, tmp2, (nnew+1)*(nnew+1)*sizeof(double));
+
+                       if (lvl == maxlvl-1) {
+                           for (i=0; i<1000; i++) {
+                               gauss_seidel(eps, tmp1, fnew, nnew, v1i, v2i, dt, nu, dx2);
+                           }
+                       }
+                       else {
+                          mg_inner2(eps, fnew, tmp1, v1, v2, nu, dx2, dt, shape, lvl+1, maxlvl, nnew);  
+                       }
+
+                       prolongation(tmp1, eps, nnew);
+                       for (i=1; i<n; i++) {
+                           for (int j=1; j<n; j++) {
+                               u[i*(n+1)+j] += tmp1[i*(n+1)+j];
+                           }
+                       }
+
+                       for (i=0; i<NITER; i++) {
+
+                           gauss_seidel(u, tmp1, f, n, v1i, v2i, dt, nu, dx);
+
+                       }
+
+
+
+                   }
+
+
+
+
+               }
+
 const long MAX_CYCLE = 50; // maximum number of v- or w-cycles
 
 void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, 
@@ -124,6 +181,7 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
     for (long iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
 
         mg_inner(utow, rhstow, v1tow, v2tow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, nu);
+        // mg_inner2(utow[0], rhstow[0], tmp1, v1tow, v2tow, nu, dx, dt, shape, 0, maxlvl, n);
         // This is risky as tmp1 holds a slightly outdated residual
         //res_norm = compute_norm(tmp1,n); 
         // Perhaps better to recalculate
