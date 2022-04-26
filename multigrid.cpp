@@ -165,6 +165,80 @@ void mg_inner2(double *u, double *f, double *tmp1, double **v1, double **v2, dou
 
                }
 
+void mg_inner3(double** u, double** rhs, 
+              double** v1, double** v2,
+              double* tmp, 
+              double dx, int n, 
+              int lvl, int maxlvl, 
+              int shape, double dt, double nu)
+{
+/*
+u[maxlvl][(n+1)*(n+1)]   - tower of arrays of u and its residual at successively 
+                         coarsening grids
+rhs[maxlvl][(n+1)*(n+1)] - same thing, but for the right hand side of the linear system
+v1[maxlvl][(n+1)*(n+1)]  - same for x component of velocity at all grids
+v2[maxlvl][(n+1)*(n+1)]  - same for y component of velocity at all grids
+tmp1[(n+1)*(n+1)]        - Spare computation space, 1
+tmp2[(n+1)*(n+1)]        - Spare computation space, 2
+dx                       - grid spacing at current level
+n                        - n+1 cells, counting ghost nodes, in each dimension (so fields
+                           are (n+1)*(n+1) in length)
+lvl                      - Current level in the multigrid recursion
+maxlvl                   - Maximum multigrid recursion depth
+shape                    - Shape of multigrid cycles (shape=1 --> V-cycle, 2 --> W-cycle)
+dt                       - timestep
+nu                       - diffusion parameter
+*/
+
+    // Inner function for multigrid solver
+    int i, iter, sh;
+    int NITER = 3; //number of Gauss-Seidel iterations
+        // I don't know how many to use; experiment!
+
+
+    double *ui = u[lvl]; double *ui1 = u[lvl+1];
+    double *rhsi = rhs[lvl]; double *rhsi1 = rhs[lvl+1];
+    double *v1i = v1[lvl];
+    double *v2i = v2[lvl];
+    int nnew = n/2;
+    double dx2 = 2*dx;
+
+    // Loop over shape -- shape == 1 is V-cycle, shape == 2 is W-cycle
+    for (sh = 0; sh < shape; ++sh)
+    {
+        if (lvl == maxlvl-1){
+            // Explicit solve for du = A\r
+            //exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
+            double res_exact = 1.0; i = 0;
+            while (i < 1000 && res_exact > 1e-5){
+                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx); // tmp1 <- gs(stuff)
+                residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx);
+                res_exact = compute_norm(tmp, n);
+                i++;
+            }
+        } else{
+            for (iter = 0; iter < NITER; ++iter)
+            {
+                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
+
+            }
+            residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
+            restriction(rhsi1, tmp, n);      // rhsi1 <- restriction(tmp1, n) - residual nnew
+            for (i = 0; i < (nnew+1)*(nnew+1); ++i) ui1[i] = 0;     // set u[lvl+1] to 0
+            // Multigrid should output in 1st arg with same dimension as input
+            mg_inner3(u, rhs, v1, v2, tmp, dx2, nnew, lvl+1, maxlvl, shape, dt, nu); // r <- mg(stuff)
+            prolongation(tmp, ui1, nnew);  // tmp1 <- prolongation(u[lvl+1], nnew)
+            for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp[i];
+            for (iter = 0; iter < NITER; ++iter)
+            {
+                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
+            }
+        }
+    }
+    // Output should be in u[lvl]!
+    return;
+}
+
 const long MAX_CYCLE = 50; // maximum number of v- or w-cycles
 
 void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, 
@@ -179,8 +253,8 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
     printf("Initial Residual: %f\n", res0_norm);
 
     for (long iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
-
-        mg_inner(utow, rhstow, v1tow, v2tow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, nu);
+        // mg_inner(utow, rhstow, v1tow, v2tow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, nu);
+        mg_inner3(utow, rhstow, v1tow, v2tow, tmp1, dx, n, 0, maxlvl, shape, dt, nu);
         // mg_inner2(utow[0], rhstow[0], tmp1, v1tow, v2tow, nu, dx, dt, shape, 0, maxlvl, n);
         // This is risky as tmp1 holds a slightly outdated residual
         //res_norm = compute_norm(tmp1,n); 
