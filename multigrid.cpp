@@ -211,7 +211,9 @@ nu                       - diffusion parameter
             //exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
             double res_exact = 1.0; i = 0;
             while (i < 1000 && res_exact > 1e-5){
+                // printf("ui[1]:%.6f\t",ui[1*(n+1)+1]);
                 gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx); // tmp1 <- gs(stuff)
+                // printf("ui[1]:%.6f\n",ui[1*(n+1)+1]);
                 residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx);
                 res_exact = compute_norm(tmp, n);
                 i++;
@@ -219,7 +221,9 @@ nu                       - diffusion parameter
         } else{
             for (iter = 0; iter < NITER; ++iter)
             {
+                // printf("ui[1]:%.6f\t",ui[1*(n+1)+1]);
                 gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
+                // printf("ui[1]:%.6f\n",ui[1*(n+1)+1]);
 
             }
             residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
@@ -312,7 +316,7 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
 
     // iterate
     for (int iter = 0; iter < (int) (T/dt); iter++){
-        compute_rhs(rhstow[0], utow[0], n+1, v1tow[0], v2tow[0], dt, nu, dx);
+        compute_rhs(rhstow[0], utow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
         mg_outer(utow, v1tow, v2tow, rhstow, tmp1, tmp2, nu, maxlvl, n, dt, dx, tol, shape); // utow <- mg_outer(stuff)
     }
 
@@ -334,10 +338,10 @@ int main(){
     // define N and calculate maxlvl
     // define v and nu
     // initialize u to some function
-    int N = 256;
+    int N = 20;
     double dx = 1.0/N;
-    int maxlvl = 5; // n = 32 seems exactly solvable
-    double nu = 1e-2; // chosen at random
+    int maxlvl = 1; // n = 32 seems exactly solvable
+    double nu = 4*1e-4; // chosen at random
     
     double *uT, *u0, *v1, *v2;
     uT = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
@@ -354,21 +358,30 @@ int main(){
         for (j = 0; j < N+1; ++j)
         {
             // Let's hope that this Gaussian is sufficiently close to 0 at the edges...
-            u0[i*(N+1)+j] =  exp(sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
-            v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);
-            v2[i*(N+1)+j] =  kx*cos(kx*i*dx)*sin(ky*j*dx);
+            u0[i*(N+1)+j] =  1;//exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
+            
+            v1[i*(N+1)+j] = 0.01 + 0.005*i*dx - 0.005*j*dx;//-ky*sin(kx*i*dx)*cos(ky*j*dx);
+            v2[i*(N+1)+j] =  -0.01 - 0.005*i*dx + 0.005*j*dx;//kx*cos(kx*i*dx)*sin(ky*j*dx);
         }
     }
+    u0[N/2*(N+1)+N/2] = 100;
 
     // call timestepper
-    double dt = 0.001;  // Ah, we'll have to experiment with this one
-    double T  = 1*dt;   // debug first, get ambitious later
+    double dt = 0.05;  // Ah, we'll have to experiment with this one
+    double T  = 60*dt;   // debug first, get ambitious later
     double tol = 1e-6;
     int shape = 1;      // V-cycles
     timestepper(uT, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
 
     // Do something with output
     printf("uT[0] = %f\n", uT[0]);
+    // for (i = 0; i < N+1; ++i)
+    // {   printf("\n");
+    //     for (j = 0; j < N+1; ++j)
+    //     {
+    //         printf("%.4f\t",uT[i*(N+1)+j]);
+    //     }
+    // }
 
     free(uT);
     free(u0);
