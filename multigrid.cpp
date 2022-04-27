@@ -143,7 +143,7 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
         residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
         res_norm = compute_norm(tmp1,n);
 
-        if (0 == (iter % 10)) {
+        if (0 == (iter % 1)) {
             printf("[Iter %ld] Residual norm: %2.8f\n", iter, res_norm);
         }
 
@@ -215,10 +215,10 @@ int main(){
     // define N and calculate maxlvl
     // define v and nu
     // initialize u to some function
-    int N = 32;
+    int N = 128;
     double dx = 1.0/N;
     int maxlvl = 2; // n = 32 seems exactly solvable
-    double nu = 4*1e-4; // chosen at random
+    double nu = -4*1e-4; // chosen at random
     
     double *uT, *u0, *v1, *v2;
     uT = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
@@ -226,8 +226,8 @@ int main(){
     v1 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     v2 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     int i,j;
-    double kx = 4.0*PI;
-    double ky = 4.0*PI;
+    double kx = 1.0*PI;
+    double ky = 1.0*PI;
     double x0 = 0.2, y0 = 0.4;
     double sigma = 100.0;
     for (i = 0; i < N+1; ++i)
@@ -235,17 +235,17 @@ int main(){
         for (j = 0; j < N+1; ++j)
         {
             // Let's hope that this Gaussian is sufficiently close to 0 at the edges...
-            u0[i*(N+1)+j] =  1;//exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
+            u0[i*(N+1)+j] =  0;//exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
             
-            v1[i*(N+1)+j] =  0.01 + 0.005*i*dx - 0.005*j*dx;//-ky*sin(kx*i*dx)*cos(ky*j*dx);
-            v2[i*(N+1)+j] = -0.01 - 0.005*i*dx + 0.005*j*dx;//kx*cos(kx*i*dx)*sin(ky*j*dx);
+            v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);// 0.01 + 0.005*i*dx - 0.005*j*dx;//
+            v2[i*(N+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);//-0.01 - 0.005*i*dx + 0.005*j*dx;//
         }
     }
     u0[N/2*(N+1)+N/2] = 100;
 
     // call timestepper
     double dt = 0.05;  // Ah, we'll have to experiment with this one
-    double T  = 1*dt;   // debug first, get ambitious later
+    double T  = 10*dt;   // debug first, get ambitious later
     double tol = 1e-6;
     int shape = 1;      // V-cycles
     timestepper(uT, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);

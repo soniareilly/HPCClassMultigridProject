@@ -73,7 +73,7 @@ int main(){
         }
         printf("\n");
     }
-    restriction(up2, u, N/2);
+    restriction(up2, u, 2*N);
     for (int i = 0; i < N+1; ++i)
     {   
         for (int j = 0; j < N+1; ++j)
