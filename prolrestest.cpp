@@ -73,6 +73,15 @@ int main(){
         }
         printf("\n");
     }
+    restriction(up2, u, N/2);
+    for (int i = 0; i < N+1; ++i)
+    {   
+        for (int j = 0; j < N+1; ++j)
+        {
+            printf("%.1f\t",up2[i*(N+1)+j]);
+        }
+        printf("\n");
+    }
 
     free(up);
     free(u);
