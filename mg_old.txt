@@ -1,0 +1,134 @@
+void mg_inner(double** u, double** rhs, 
+              double** v1, double** v2,
+              double* tmp1, double* tmp2, 
+              double dx, int n, 
+              int lvl, int maxlvl, 
+              int shape, double dt, double nu)
+{
+/*
+u[maxlvl][(n+1)*(n+1)]   - tower of arrays of u and its residual at successively 
+                         coarsening grids
+rhs[maxlvl][(n+1)*(n+1)] - same thing, but for the right hand side of the linear system
+v1[maxlvl][(n+1)*(n+1)]  - same for x component of velocity at all grids
+v2[maxlvl][(n+1)*(n+1)]  - same for y component of velocity at all grids
+tmp1[(n+1)*(n+1)]        - Spare computation space, 1
+tmp2[(n+1)*(n+1)]        - Spare computation space, 2
+dx                       - grid spacing at current level
+n                        - n+1 cells, counting ghost nodes, in each dimension (so fields
+                           are (n+1)*(n+1) in length)
+lvl                      - Current level in the multigrid recursion
+maxlvl                   - Maximum multigrid recursion depth
+shape                    - Shape of multigrid cycles (shape=1 --> V-cycle, 2 --> W-cycle)
+dt                       - timestep
+nu                       - diffusion parameter
+*/
+
+    // Inner function for multigrid solver
+    int i, iter, sh;
+    int NITER = 3; //number of Gauss-Seidel iterations
+        // I don't know how many to use; experiment!
+
+
+    double *ui = u[lvl];
+    double *rhsi = rhs[lvl];
+    double *v1i = v1[lvl];
+    double *v2i = v2[lvl];
+    int nnew = n/2;
+    double dx2 = 2*dx;
+
+    // Loop over shape -- shape == 1 is V-cycle, shape == 2 is W-cycle
+    for (sh = 0; sh < shape; ++sh)
+    {
+        for (iter = 0; iter < NITER; ++iter)
+        {
+            gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
+
+        }
+        residual(tmp1, ui, rhsi, n, v1i, v2i, dt, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
+        restriction(tmp2, tmp1, n);      // tmp2 <- restriction(tmp1, n) - residual nnew
+        if (lvl == maxlvl-1)
+        {
+            // Explicit solve for du = A\r
+            //exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
+            double res_exact = 1.0; i = 0;
+            while (i < 1000 && res_exact > 1e-5){
+                gauss_seidel(tmp2, rhsi, nnew, v1i, v2i, dt, nu, dx2); // tmp1 <- gs(stuff)
+                // for (int j = 0; j < (nnew+1)*(nnew+1); j++) tmp2[j] = tmp1[j];
+                residual(tmp1, tmp2, rhsi, nnew, v1i, v2i, dt, nu, dx);
+                res_exact = compute_norm(tmp1, nnew);
+                i++;
+            }
+            prolongation(tmp2, tmp1, nnew);  // up <- prolongation(u, nnew)
+        } else 
+        {
+            // Multigrid should output in 1st arg with same dimension as input
+            mg_inner(u, rhs, v1, v2, tmp1, tmp2, dx2, nnew, lvl+1, maxlvl, shape, dt, nu); // r <- mg(stuff)
+            prolongation(tmp2, u[lvl+1], nnew);  // up <- prolongation(u, nnew)
+        }
+        for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp2[i];
+        for (iter = 0; iter < NITER; ++iter)
+        {
+            gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
+        }
+    }
+    // Output should be in u[lvl]!
+    return;
+}
+
+void mg_inner2(double *u, double *f,
+               double *tmp1, 
+               double **v1, double **v2, 
+               double nu, double dx, double dt,
+               int shape, int lvl, int maxlvl, int n) {
+                   
+                   double* v1i = v1[lvl];
+                   double* v2i = v2[lvl];
+                   int NITER = 3;
+                   int nnew = n/2;
+                   int dx2 = dx*2;
+                   int i;
+                   double* fnew = (double *) malloc((nnew+1)*(nnew+1)*sizeof(double));
+                   double* eps = (double *) calloc((nnew+1)*(nnew+1), sizeof(double));
+
+                   for (int sh=0; sh<shape; sh++) {
+
+                       for (i=0; i<NITER; i++) {
+
+                           gauss_seidel(u, f, n, v1i, v2i, dt, nu, dx);
+
+                       }
+
+                       residual(tmp1, u, f, n, v1i, v2i, dt, nu, dx); 
+                       restriction(fnew, tmp1, n); 
+                    //    memcpy(f, tmp2, (nnew+1)*(nnew+1)*sizeof(double));
+
+                       if (lvl == maxlvl-1) {
+                           for (i=0; i<1000; i++) {
+                               gauss_seidel(eps, fnew, nnew, v1i, v2i, dt, nu, dx2);
+                           }
+                       }
+                       else {
+                          mg_inner2(eps, fnew, tmp1, v1, v2, nu, dx2, dt, shape, lvl+1, maxlvl, nnew);  
+                       }
+
+                       prolongation(tmp1, eps, nnew);
+                       for (i=1; i<n; i++) {
+                           for (int j=1; j<n; j++) {
+                               u[i*(n+1)+j] += tmp1[i*(n+1)+j];
+                           }
+                       }
+
+                       for (i=0; i<NITER; i++) {
+
+                           gauss_seidel(u, f, n, v1i, v2i, dt, nu, dx);
+
+                       }
+
+
+
+                   }
+
+
+
+
+               }
