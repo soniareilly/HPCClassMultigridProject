@@ -1,0 +1,69 @@
+#include <stdio.h>
+#include <math.h>
+#include <string.h>
+
+// u is row major
+
+void prolongation(double* up, double* u, int n){
+    // up is the output, size 2n+1 x 2n+1, u is the input, size n+1 x n+1
+    for (int i = 0; i < n+1; i++){
+        for (int j = 0; j < n+1; j++){
+            up[2*i*(2*n+1) + 2*j] = u[i*(n+1) + j];
+            up[(2*i+1)*(2*n+1) + 2*j] = (u[i*(n+1) + j] + u[(i+1)*(n+1) + j])/2;
+            up[2*i*(2*n+1) + 2*j+1] = (u[i*(n+1) + j] + u[i*(n+1) + j+1])/2;
+            up[(2*i+1)*(2*n+1) + 2*j+1] = (u[i*(n+1) + j] + u[(i+1)*(n+1) + j] + u[i*(n+1) + j+1] + u[(i+1)*(n+1) + j+1])/4;
+        }
+    }
+}
+
+void restriction(double* u, double* up, int n){
+    // u is the output, size n/2+1 x n/2+1, up is the input, size n+1 x n+1
+    for (int i = 0; i < n/2+1; i++){
+        for (int j = 0; j < n/2+1; j++){
+            //u[i*(n/2+1)+j] = (up[(2*i-1)*(n+1)+2*j-1] + 2*up[(2*i-1)*(n+1)+2*j] + up[(2*i-1)*(n+1)+2*j+1])/16;
+            //u[i*(n/2+1)+j] += (2*up[2*i*(n+1)+2*j-1] + 4*up[2*i*(n+1)+2*j] + 2*up[2*i*(n+1)+2*j+1])/16;
+            //u[i*(n/2+1)+j] += (up[(2*i+1)*(n+1)+2*j-1] + 2*up[(2*i+1)*(n+1)+2*j] + up[(2*i+1)*(n+1)+2*j+1])/16;
+            u[i*(n/2+1)+j] = up[2*i*(n+1)+2*j];
+        }
+    }
+}
+
+int main(){
+    int N = 5;
+    
+    double *up, *u, *up2;
+    up = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    u = (double*) malloc ( sizeof(double) * (2*N+1)*(2*N+1) );
+    up2 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+
+    // Initialize up
+    for (int i = 0; i < N+1; i++){
+        for(int j = 0; j < N+1; j++){
+            up[i*(N+1)+j] = i+j;
+        }
+    }
+
+    printf("Original matrix\n");
+    for (int i = 0; i < N+1; ++i)
+    {   
+        for (int j = 0; j < N+1; ++j)
+        {
+            printf("%.1f\t",up[i*(N+1)+j]);
+        }
+        printf("\n");
+    }
+    prolongation(u, up, N);
+    printf("Prolongated matrix\n");
+    for (int i = 0; i < 2*N+1; ++i)
+    {   
+        for (int j = 0; j < 2*N+1; ++j)
+        {
+            printf("%.1f\t",u[i*(2*N+1)+j]);
+        }
+        printf("\n");
+    }
+
+    free(up);
+    free(u);
+    free(up2);
+}
