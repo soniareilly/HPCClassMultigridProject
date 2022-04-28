@@ -6,7 +6,7 @@
 
 // functions for computing coefficients for LHS (and RHS)
 inline double r(double h, double k) {
-    return 1.0/2*k/(h*h);
+    return 0.5*k/(h*h);
 }
 
 
