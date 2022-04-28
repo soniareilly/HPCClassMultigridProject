@@ -190,11 +190,11 @@ int main(){
     double dx = 1.0/N;
     
     // allocate arrays
-    double *uT, *u0, *v1, *v2;
-    uT = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
-    u0ref = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
-    u0omp = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
-    u0cuda = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    double *uTref, *uTomp, *uTcuda, *u0, *v1, *v2;
+    uTref = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    uTomp = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    uTcuda = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    u0 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     v1 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     v2 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
 
@@ -213,8 +213,7 @@ int main(){
         for (j = 0; j < N+1; ++j)
         {
             // Gaussian initial condition u0
-            u0 = exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
-            u0ref[i*(N+1)+j] = u0omp[i*(N+1)+j] = u0cuda[i*(N+1)+j] = u0;
+            u0[i*(N+1)+j] = exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
             
             // rotating velocity field
             v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);
@@ -233,7 +232,7 @@ int main(){
     // Referenced computation on CPU with 1 thread
     double tt = omp_get_wtime();
     // #pragma omp parallel num_threads(ntr) {
-    timestepper(uT, u0ref, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
+    timestepper(uTref, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
     // }
     printf("\nCPU (1 thread for reference) time: %f s\n", omp_get_wtime()-tt);
 
@@ -243,13 +242,13 @@ int main(){
     int ntr = 16; // number of threads
     #pragma omp parallel num_threads(ntr) 
     {
-    timestepper(uT, u0omp, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
+    timestepper(uTomp, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
     }
     printf("\nCPU with OMP (%d threads) time: %f s\n", ntr, omp_get_wtime()-tt);
     // compute error wrt the referenced solution
      for (i = 0; i < N+1; i++){
         for (j = 0; j < N+1; j++){
-            error += fabs(uT[i*(N+1)+j]-u0ref[0][i*(N+1)+j]);
+            error += fabs(uTomp[i*(N+1)+j]-uTref[0][i*(N+1)+j]);
     }
     printf("Error (compared to the referenced solution) = %10e\n", error);
 
