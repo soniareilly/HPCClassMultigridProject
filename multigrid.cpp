@@ -5,6 +5,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <math.h>
 #include <string.h>
 #include<omp.h> 
@@ -166,7 +167,7 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
         // solve the linear system
         mg_outer(utow, v1tow, v2tow, rhstow, tmp, nu, maxlvl, n, dt, dx, tol, shape);
         // print timestep number
-        printf("Timestep number %i\n", iter);
+        // printf("Timestep number %i\n", iter);
     }
 
     // update uT
@@ -203,7 +204,6 @@ int main(){
     double sigma = 100.0;
     double kx = 1.0*PI;
     double ky = 1.0*PI;
-    double u0;
 
     int i,j;
 
@@ -248,7 +248,8 @@ int main(){
     // compute error wrt the referenced solution
      for (i = 0; i < N+1; i++){
         for (j = 0; j < N+1; j++){
-            error += fabs(uTomp[i*(N+1)+j]-uTref[0][i*(N+1)+j]);
+            error += fabs(uTomp[i*(N+1)+j]-uTref[i*(N+1)+j]);
+        }
     }
     printf("Error (compared to the referenced solution) = %10e\n", error);
 
@@ -259,12 +260,14 @@ int main(){
     FILE *f = fopen("uT.txt","w");
     for (i = 0; i < N+1; i++){
         for (j = 0; j < N+1; j++){
-            fprintf(f, "%d\t%d\t%f\n", i, j, uT[i*(N+1)+j]);
+            fprintf(f, "%d\t%d\t%f\n", i, j, uTref[i*(N+1)+j]);
         }
     }
     fclose(f);
 
-    free(uT);
+    free(uTref);
+    free(uTomp);
+    free(uTcuda);
     free(u0);
     free(v1);
     free(v2);

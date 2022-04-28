@@ -67,7 +67,7 @@ double compute_norm(double *res, long n) {
 
     double tmp = 0.0;
 
-    #pragma omp for collapse(2) reduction(+: tmp)
+    #pragma omp for //collapse(2) reduction(+: tmp)
     for (long i = 1; i < n; i++){
         for (long j = 1; j < n; j++) {
             tmp += res[i*(n+1)+j] * res[i*(n+1)+j];
