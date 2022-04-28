@@ -28,7 +28,7 @@ void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double 
     double aa,bb,cc,dd,rr; // LHS coeffficients
     rr = r(h,k);
 
-    #pragma omp parallel
+    // #pragma omp parallel
     #pragma omp for collapse(2)
     for (long i = 1; i < n; i++){
         for (long j = 1; j < n; j++) {
@@ -49,7 +49,7 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
     double aa,bb,cc,dd,rr; // LHS coeffficients
     rr = r(h,k);
 
-    #pragma omp parallel
+    // #pragma omp parallel
     #pragma omp for collapse(2)
     for (long i = 1; i < n; i++){
         for (long j = 1; j < n; j++) {
@@ -67,8 +67,10 @@ double compute_norm(double *res, long n) {
 
     double tmp = 0.0;
 
+    #pragma omp for collapse(2) //ordered //reduction(+: tmp)
     for (long i = 1; i < n; i++){
         for (long j = 1; j < n; j++) {
+            #pragma omp atomic update
             tmp += res[i*(n+1)+j] * res[i*(n+1)+j];
         }
     }
@@ -83,7 +85,7 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
     double aa,bb,cc,dd,rr; // LHS coeffficients
     rr = r(h,k);
 
-    #pragma omp parallel
+    // #pragma omp parallel
     { 
         // GS iteration to update red points
         #pragma omp for collapse(2) nowait
@@ -151,7 +153,7 @@ void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, doubl
     // UPDATING RED POINTS
     // here we're assuming top left is red
     // interior
-    #pragma omp parallel for num_threads(N_thr) private(i,j)
+    #pragma omp for private(i,j)
     for (i = 1; i < n; i++) {
     	for (j = 2-i%2; j < n; j+=2) {
             aa = a(v2[i*(n+1)+j],nu,h,rr);
@@ -164,7 +166,7 @@ void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, doubl
 
     // UPDATING BLACK POINTS
     // interior
-    #pragma omp parallel for num_threads(N_thr) private(i,j)
+    #pragma omp for private(i,j)
     for (i = 1; i < n; i++) {
     	for (j = 1+i%2; j < n; j+=2) {
             aa = a(v2[i*(n+1)+j],nu,h,rr);
@@ -179,6 +181,7 @@ void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, doubl
 
 void prolongation(double* up, double* u, int n){
     // up is the output, size 2n+1 x 2n+1, u is the input, size n+1 x n+1
+    #pragma omp for collapse(2)
     for (int i = 0; i < n; i++){
         for (int j = 0; j < n; j++){
             up[2*i*(2*n+1) + 2*j] = u[i*(n+1) + j];
@@ -188,6 +191,7 @@ void prolongation(double* up, double* u, int n){
         }
     }
     // right and bottom borders
+    #pragma omp for
     for (int i = 0; i < n; i++){
         // right border
         up[2*i*(2*n+1) + 2*n] = u[i*(n+1) + n];
@@ -202,6 +206,7 @@ void prolongation(double* up, double* u, int n){
 
 void restriction(double* u, double* up, int n){
     // u is the output, size n/2+1 x n/2+1, up is the input, size n+1 x n+1
+    #pragma omp for collapse(2)
     for (int i = 0; i < n/2+1; i++){
         for (int j = 0; j < n/2+1; j++){
             // More complicated way to do a restriction -- get this working if time permits
