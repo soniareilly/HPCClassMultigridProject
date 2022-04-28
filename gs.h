@@ -11,3 +11,7 @@ void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, doubl
 
 // function header to compute rhs based on u
 void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double k, double nu, double h);
+
+// function headers for prolongation and restriction
+void prolongation(double* up, double* u, int n);
+void restriction(double* u, double* up, int n);

@@ -1,62 +1,30 @@
+/*  2D Multigrid Implementation for Advection-Diffusion using OpenMP
+ *  2nd order finite difference spatial discretization, Crank-Nicholson time discretization
+ *  (C) Tanya Wang, Sonia Reilly, Nolan Reilly
+ *  Spring 2022 High Performance Computing Final Project
+ */
+
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
-#include "gs.h"       // Gauss-Seidel header
+#include "gs.h" 
 
 #define PI 3.1415926535897932
 
-// u is row major
-
-void prolongation(double* up, double* u, int n){
-    // up is the output, size 2n+1 x 2n+1, u is the input, size n+1 x n+1
-    for (int i = 0; i < n; i++){
-        for (int j = 0; j < n; j++){
-            up[2*i*(2*n+1) + 2*j] = u[i*(n+1) + j];
-            up[(2*i+1)*(2*n+1) + 2*j] = (u[i*(n+1) + j] + u[(i+1)*(n+1) + j])/2;
-            up[2*i*(2*n+1) + 2*j+1] = (u[i*(n+1) + j] + u[i*(n+1) + j+1])/2;
-            up[(2*i+1)*(2*n+1) + 2*j+1] = (u[i*(n+1) + j] + u[(i+1)*(n+1) + j] + u[i*(n+1) + j+1] + u[(i+1)*(n+1) + j+1])/4;
-        }
-    }
-    // right and bottom borders
-    for (int i = 0; i < n; i++){
-        // right border
-        up[2*i*(2*n+1) + 2*n] = u[i*(n+1) + n];
-        up[(2*i+1)*(2*n+1) + 2*n] = (u[i*(n+1) + n] + u[(i+1)*(n+1) + n])/2;
-        // bottom border
-        up[2*n*(2*n+1) + 2*i] = u[n*(n+1) + i];
-        up[2*n*(2*n+1) + 2*i+1] = (u[n*(n+1) + i] + u[n*(n+1) + i+1])/2;
-    }
-    // bottom right corner
-    up[(2*n)*(2*n+1) + 2*n] = u[n*(n+1) + n];
-}
-
-void restriction(double* u, double* up, int n){
-    // u is the output, size n/2+1 x n/2+1, up is the input, size n+1 x n+1
-    for (int i = 0; i < n/2+1; i++){
-        for (int j = 0; j < n/2+1; j++){
-            //u[i*(n/2+1)+j] = (up[(2*i-1)*(n+1)+2*j-1] + 2*up[(2*i-1)*(n+1)+2*j] + up[(2*i-1)*(n+1)+2*j+1])/16;
-            //u[i*(n/2+1)+j] += (2*up[2*i*(n+1)+2*j-1] + 4*up[2*i*(n+1)+2*j] + 2*up[2*i*(n+1)+2*j+1])/16;
-            //u[i*(n/2+1)+j] += (up[(2*i+1)*(n+1)+2*j-1] + 2*up[(2*i+1)*(n+1)+2*j] + up[(2*i+1)*(n+1)+2*j+1])/16;
-            u[i*(n/2+1)+j] = up[2*i*(n+1)+2*j];
-        }
-    }
-}
-
+// inner loop of multigrid, computes one V or W-cycle and recurses
 void mg_inner(double** u, double** rhs, 
               double** v1, double** v2,
-              double* tmp, 
-              double dx, int n, 
+              double* tmp, double dx, int n, 
               int lvl, int maxlvl, 
               int shape, double dt, double nu)
 {
 /*
 u[maxlvl][(n+1)*(n+1)]   - tower of arrays of u and its residual at successively 
-                         coarsening grids
+                           coarsening grids
 rhs[maxlvl][(n+1)*(n+1)] - same thing, but for the right hand side of the linear system
 v1[maxlvl][(n+1)*(n+1)]  - same for x component of velocity at all grids
 v2[maxlvl][(n+1)*(n+1)]  - same for y component of velocity at all grids
-tmp1[(n+1)*(n+1)]        - Spare computation space, 1
-tmp2[(n+1)*(n+1)]        - Spare computation space, 2
+tmp[(n+1)*(n+1)]         - Spare computation space
 dx                       - grid spacing at current level
 n                        - n+1 cells, counting ghost nodes, in each dimension (so fields
                            are (n+1)*(n+1) in length)
@@ -67,12 +35,10 @@ dt                       - timestep
 nu                       - diffusion parameter
 */
 
-    // Inner function for multigrid solver
     int i, iter, sh;
-    int NITER = 3; //number of Gauss-Seidel iterations
-        // I don't know how many to use; experiment!
+    int NITER = 3;      //number of Gauss-Seidel iterations
 
-
+    // helper variables
     double *ui = u[lvl]; double *ui1 = u[lvl+1];
     double *rhsi = rhs[lvl]; double *rhsi1 = rhs[lvl+1];
     double *v1i = v1[lvl];
@@ -83,86 +49,88 @@ nu                       - diffusion parameter
     // Loop over shape -- shape == 1 is V-cycle, shape == 2 is W-cycle
     for (sh = 0; sh < shape; ++sh)
     {
+        // at coarsest level, solve with Gauss-Seidel
         if (lvl == maxlvl-1){
-            // Explicit solve for du = A\r
-            //exact_solve(tmp1, tmp2, nnew);  // tmp1 <- exact_solve(tmp2, nnew)
+            // Solve for du = A\r, here using Gauss-Seidel until fully converged
+            // Replace with exact solve, time permitting
             double res_exact = 1.0; i = 0;
+            // maxiter and tolerance are hard-coded for now
             while (i < 1000 && res_exact > 1e-5){
-                // printf("ui[1]:%.6f\t",ui[1*(n+1)+1]);
-                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx); // tmp1 <- gs(stuff)
-                // printf("ui[1]:%.6f\n",ui[1*(n+1)+1]);
+                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
                 residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx);
                 res_exact = compute_norm(tmp, n);
                 i++;
             }
+        // at any other level, smooth, restrict, recurse, prolong, update
         } else{
+            // smoothing
             for (iter = 0; iter < NITER; ++iter)
             {
-                // printf("ui[1]:%.6f\t",ui[1*(n+1)+1]);
                 gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
-                // printf("ui[1]:%.6f\n",ui[1*(n+1)+1]);
-
             }
-            residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx);      // tmp1 <- residual(u, rhs, n) - residual n
-            restriction(rhsi1, tmp, n);      // rhsi1 <- restriction(tmp1, n) - residual nnew
-            for (i = 0; i < (nnew+1)*(nnew+1); ++i) ui1[i] = 0;     // set u[lvl+1] to 0
-            // Multigrid should output in 1st arg with same dimension as input
-            mg_inner(u, rhs, v1, v2, tmp, dx2, nnew, lvl+1, maxlvl, shape, dt, nu); // r <- mg(stuff)
-            prolongation(tmp, ui1, nnew);  // tmp1 <- prolongation(u[lvl+1], nnew)
+            residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx);
+            // restrict residual to coarser level
+            restriction(rhsi1, tmp, n);
+            // set u[lvl+1] to 0
+            for (i = 0; i < (nnew+1)*(nnew+1); ++i) ui1[i] = 0;
+            // Recurse at coarser level
+            mg_inner(u, rhs, v1, v2, tmp, dx2, nnew, lvl+1, maxlvl, shape, dt, nu);
+            // Prolong solution back to fine level
+            prolongation(tmp, ui1, nnew);
+            // update u
             for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp[i];
+            // smoothing
             for (iter = 0; iter < NITER; ++iter)
             {
                 gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
             }
         }
     }
-    // Output should be in u[lvl]!
     return;
 }
 
-const long MAX_CYCLE = 50; // maximum number of v- or w-cycles
+const long MAX_CYCLE = 50;      // maximum number of V or W-cycles
 
+// outer loop of multigrid, repeats V or W-cycle as many times as necessary for convergence
 void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, 
-              double* tmp1, double* tmp2,
-              double nu, int maxlvl, int n, 
+              double* tmp, double nu, int maxlvl, int n, 
               double dt, double dx, double tol, int shape) {
 
-    double res_norm, res0_norm; // residual norm and tolerance
+    double res_norm, res0_norm;
+    int iter;
+    // calculate initial residual
+    residual(tmp, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
+    res_norm = res0_norm = compute_norm(tmp,n);
 
-    residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
-    res_norm = res0_norm = compute_norm(tmp1,n);
-    printf("Initial Residual: %f\n", res0_norm);
-
-    for (long iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
-        // mg_inner(utow, rhstow, v1tow, v2tow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, nu);
-        mg_inner(utow, rhstow, v1tow, v2tow, tmp1, dx, n, 0, maxlvl, shape, dt, nu);
-        // mg_inner2(utow[0], rhstow[0], tmp1, v1tow, v2tow, nu, dx, dt, shape, 0, maxlvl, n);
-        // This is risky as tmp1 holds a slightly outdated residual
-        //res_norm = compute_norm(tmp1,n); 
-        // Perhaps better to recalculate
-        residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
-        res_norm = compute_norm(tmp1,n);
-
-        if (0 == (iter % 10)) {
-            printf("[Iter %ld] Residual norm: %2.8f\n", iter, res_norm);
-        }
-
+    // perform V or W-cycles until convergence
+    for (iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { 
+        // V or W-cycle
+        mg_inner(utow, rhstow, v1tow, v2tow, tmp, dx, n, 0, maxlvl, shape, dt, nu);
+        // compute new residual
+        residual(tmp, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
+        res_norm = compute_norm(tmp,n);
     }
 
+    // test for non-convergence and print warning
+    if (iter == MAX_CYCLE-1){
+        printf("multigrid did not converge in %li cycles\n", MAX_CYCLE);
+    }
 }
 
+// Step solution forward in time
+// Outputs the solution uT after performing the timestepping starting with u0
 void timestepper(double* uT, double* u0, double* v1, double* v2,
                 double nu, int maxlvl, int n, double dt, double T, 
                 double dx, double tol, int shape){
-    // Outputs the solution u after performing the timestepping starting with u0
     // n is the dimension of u0, v1, v2, the finest n
-    // declare towers
+
+    // declare towers (pointers to arrays of pointers to successively coarsening arrays)
     double *utow[maxlvl]; 
     double *v1tow[maxlvl]; 
     double *v2tow[maxlvl]; 
     double *rhstow[maxlvl];
     
-    // initialize top levels of towers
+    // initialize top (finest) levels of towers
     // utow[0] = u0; v1tow[0] = v1; v2tow[0] = v2; 
     utow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
     v1tow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
@@ -173,6 +141,7 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     memcpy(v1tow[0], v1, (n+1)*(n+1)*sizeof(double));
     memcpy(v2tow[0], v2, (n+1)*(n+1)*sizeof(double));
 
+    // define/initialize lower levels
     int ni = n+1;
     for (int i = 1; i < maxlvl; i++){
         ni = (n>>1) + 1;
@@ -186,22 +155,24 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
         // lower levels of rhs are just 0s
         rhstow[i] = (double*) calloc(ni*ni, sizeof(double));
     }
+    // initialize workspace variable
+    double *tmp = (double *) malloc((n+1)*(n+1)*sizeof(double));
 
-    double *tmp1, *tmp2;
-    tmp1 = (double *) malloc((n+1)*(n+1)*sizeof(double));
-    tmp2 = (double *) malloc((n+1)*(n+1)*sizeof(double));
-
-    // iterate
+    // iterate in time
     for (int iter = 0; iter < (int) (T/dt); iter++){
+        // update rhs of the linear system
         compute_rhs(rhstow[0], utow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
-        mg_outer(utow, v1tow, v2tow, rhstow, tmp1, tmp2, nu, maxlvl, n, dt, dx, tol, shape); // utow <- mg_outer(stuff)
+        // solve the linear system
+        mg_outer(utow, v1tow, v2tow, rhstow, tmp, nu, maxlvl, n, dt, dx, tol, shape);
+        // print timestep number
+        printf("Timestep number %i\n", iter);
     }
 
     // update uT
     memcpy(uT, utow[0], (n+1)*(n+1)*sizeof(double));
 
-    free(tmp1);
-    free(tmp2);
+    free(tmp);
+    // free each level of the towers
     for (int i = 0; i < maxlvl; ++i)
     {
         free(utow[i]);
@@ -213,45 +184,48 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
 
 int main(){
     // define N and calculate maxlvl
-    // define v and nu
-    // initialize u to some function
-    int N = 1024;
+    int N = 256;                    // Finest grid size. MUST BE A POWER OF 2
+    int maxlvl = int(log2(N))-4;    // Levels of multigrid. n = 16 is solved exactly
     double dx = 1.0/N;
-    // WE SHOULD MAKE THIS DEPEND ON N
-    int maxlvl = 6; // n = 32 seems exactly solvable
-    double nu = 0;//-4*1e-4; // chosen at random
     
+    // allocate arrays
     double *uT, *u0, *v1, *v2;
     uT = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     u0 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     v1 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     v2 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
-    int i,j;
-    double kx = 1.0*PI;
-    double ky = 1.0*PI;
+
+    // define parameters of u0 and v1,v2
     double x0 = 0.2, y0 = 0.4;
     double sigma = 100.0;
+    double kx = 1.0*PI;
+    double ky = 1.0*PI;
+
+    int i,j;
+
+    // initialize u0, v1, v2
     for (i = 0; i < N+1; ++i)
     {
         for (j = 0; j < N+1; ++j)
         {
-            // Let's hope that this Gaussian is sufficiently close to 0 at the edges...
+            // Gaussian initial condition u0
             u0[i*(N+1)+j] =  exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
-            
-            v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);// 0.01 + 0.005*i*dx - 0.005*j*dx;//
-            v2[i*(N+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);//-0.01 - 0.005*i*dx + 0.005*j*dx;//
+            // rotating velocity field
+            v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);
+            v2[i*(N+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);
         }
     }
-    //u0[N/2*(N+1)+N/2] = 100;
+    // initialize diffusion parameter nu
+    double nu = -4*1e-4;            // must be negative because of how we write the equation
 
     // call timestepper
-    double dt = dx/10;  
-    double T  = 100*dt;
-    double tol = 1e-6;
-    int shape = 1;      // V-cycles
+    double dt = dx/10;              // timestep dt depends on dx to satisfy CFL
+    double T  = 100*dt;             // end time of simulation
+    double tol = 1e-6;              // relative tolerance for mg_outer convergence
+    int shape = 1;                  // V-cycle or W-cycle (here, V-cycle)
     timestepper(uT, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
 
-    // Print uT to file
+    // Print final uT to file
     FILE *f = fopen("uT.txt","w");
     for (i = 0; i < N+1; i++){
         for (j = 0; j < N+1; j++){
