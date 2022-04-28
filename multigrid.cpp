@@ -132,9 +132,9 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     
     // initialize top (finest) levels of towers
     // utow[0] = u0; v1tow[0] = v1; v2tow[0] = v2; 
-    utow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
-    v1tow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
-    v2tow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
+    utow[0]   = (double*) malloc((n+1)*(n+1)*sizeof(double));
+    v1tow[0]  = (double*) malloc((n+1)*(n+1)*sizeof(double));
+    v2tow[0]  = (double*) malloc((n+1)*(n+1)*sizeof(double));
     rhstow[0] = (double*) malloc((n+1)*(n+1)*sizeof(double));
     
     memcpy(utow[0], u0, (n+1)*(n+1)*sizeof(double));
