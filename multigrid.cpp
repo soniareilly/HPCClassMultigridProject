@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include<omp.h> 
 #include "gs.h" 
 
 #define PI 3.1415926535897932
@@ -191,7 +192,9 @@ int main(){
     // allocate arrays
     double *uT, *u0, *v1, *v2;
     uT = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
-    u0 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    u0ref = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    u0omp = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
+    u0cuda = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     v1 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
     v2 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
 
@@ -200,6 +203,7 @@ int main(){
     double sigma = 100.0;
     double kx = 1.0*PI;
     double ky = 1.0*PI;
+    double u0;
 
     int i,j;
 
@@ -209,7 +213,9 @@ int main(){
         for (j = 0; j < N+1; ++j)
         {
             // Gaussian initial condition u0
-            u0[i*(N+1)+j] =  exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
+            u0 = exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
+            u0ref[i*(N+1)+j] = u0omp[i*(N+1)+j] = u0cuda[i*(N+1)+j] = u0;
+            
             // rotating velocity field
             v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);
             v2[i*(N+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);
@@ -223,7 +229,32 @@ int main(){
     double T  = 100*dt;             // end time of simulation
     double tol = 1e-6;              // relative tolerance for mg_outer convergence
     int shape = 1;                  // V-cycle or W-cycle (here, V-cycle)
-    timestepper(uT, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
+
+    // Referenced computation on CPU with 1 thread
+    double tt = omp_get_wtime();
+    // #pragma omp parallel num_threads(ntr) {
+    timestepper(uT, u0ref, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
+    // }
+    printf("\nCPU (1 thread for reference) time: %f s\n", omp_get_wtime()-tt);
+
+    // Computation on CPU with 16 threads (OMP)
+    double error = 0;
+    tt = omp_get_wtime();
+    int ntr = 16; // number of threads
+    #pragma omp parallel num_threads(ntr) 
+    {
+    timestepper(uT, u0omp, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
+    }
+    printf("\nCPU with OMP (%d threads) time: %f s\n", ntr, omp_get_wtime()-tt);
+    // compute error wrt the referenced solution
+     for (i = 0; i < N+1; i++){
+        for (j = 0; j < N+1; j++){
+            error += fabs(uT[i*(N+1)+j]-u0ref[0][i*(N+1)+j]);
+    }
+    printf("Error (compared to the referenced solution) = %10e\n", error);
+
+    // Computation on GPU with kernel functions
+    // use u0cuda
 
     // Print final uT to file
     FILE *f = fopen("uT.txt","w");
