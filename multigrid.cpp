@@ -42,7 +42,7 @@ void restriction(double* u, double* up, int n){
     }
 }
 
-void mg_inner3(double** u, double** rhs, 
+void mg_inner(double** u, double** rhs, 
               double** v1, double** v2,
               double* tmp, 
               double dx, int n, 
@@ -107,7 +107,7 @@ nu                       - diffusion parameter
             restriction(rhsi1, tmp, n);      // rhsi1 <- restriction(tmp1, n) - residual nnew
             for (i = 0; i < (nnew+1)*(nnew+1); ++i) ui1[i] = 0;     // set u[lvl+1] to 0
             // Multigrid should output in 1st arg with same dimension as input
-            mg_inner3(u, rhs, v1, v2, tmp, dx2, nnew, lvl+1, maxlvl, shape, dt, nu); // r <- mg(stuff)
+            mg_inner(u, rhs, v1, v2, tmp, dx2, nnew, lvl+1, maxlvl, shape, dt, nu); // r <- mg(stuff)
             prolongation(tmp, ui1, nnew);  // tmp1 <- prolongation(u[lvl+1], nnew)
             for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp[i];
             for (iter = 0; iter < NITER; ++iter)
@@ -135,7 +135,7 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
 
     for (long iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { // terminate when reach max iter or hit tolerance
         // mg_inner(utow, rhstow, v1tow, v2tow, tmp1, tmp2, dx, n, 0, maxlvl, shape, dt, nu);
-        mg_inner3(utow, rhstow, v1tow, v2tow, tmp1, dx, n, 0, maxlvl, shape, dt, nu);
+        mg_inner(utow, rhstow, v1tow, v2tow, tmp1, dx, n, 0, maxlvl, shape, dt, nu);
         // mg_inner2(utow[0], rhstow[0], tmp1, v1tow, v2tow, nu, dx, dt, shape, 0, maxlvl, n);
         // This is risky as tmp1 holds a slightly outdated residual
         //res_norm = compute_norm(tmp1,n); 
@@ -143,7 +143,7 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
         residual(tmp1, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
         res_norm = compute_norm(tmp1,n);
 
-        if (0 == (iter % 1)) {
+        if (0 == (iter % 10)) {
             printf("[Iter %ld] Residual norm: %2.8f\n", iter, res_norm);
         }
 
@@ -215,10 +215,11 @@ int main(){
     // define N and calculate maxlvl
     // define v and nu
     // initialize u to some function
-    int N = 128;
+    int N = 1024;
     double dx = 1.0/N;
-    int maxlvl = 2; // n = 32 seems exactly solvable
-    double nu = -4*1e-4; // chosen at random
+    // WE SHOULD MAKE THIS DEPEND ON N
+    int maxlvl = 6; // n = 32 seems exactly solvable
+    double nu = 0;//-4*1e-4; // chosen at random
     
     double *uT, *u0, *v1, *v2;
     uT = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
@@ -235,30 +236,29 @@ int main(){
         for (j = 0; j < N+1; ++j)
         {
             // Let's hope that this Gaussian is sufficiently close to 0 at the edges...
-            u0[i*(N+1)+j] =  0;//exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
+            u0[i*(N+1)+j] =  exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
             
             v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);// 0.01 + 0.005*i*dx - 0.005*j*dx;//
             v2[i*(N+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);//-0.01 - 0.005*i*dx + 0.005*j*dx;//
         }
     }
-    u0[N/2*(N+1)+N/2] = 100;
+    //u0[N/2*(N+1)+N/2] = 100;
 
     // call timestepper
-    double dt = 0.05;  // Ah, we'll have to experiment with this one
-    double T  = 10*dt;   // debug first, get ambitious later
+    double dt = dx/10;  
+    double T  = 100*dt;
     double tol = 1e-6;
     int shape = 1;      // V-cycles
     timestepper(uT, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
 
-    // Do something with output
-    printf("uT[0] = %f\n", uT[0]);
-    // for (i = 0; i < N+1; ++i)
-    // {   printf("\n");
-    //     for (j = 0; j < N+1; ++j)
-    //     {
-    //         printf("%.4f\t",uT[i*(N+1)+j]);
-    //     }
-    // }
+    // Print uT to file
+    FILE *f = fopen("uT.txt","w");
+    for (i = 0; i < N+1; i++){
+        for (j = 0; j < N+1; j++){
+            fprintf(f, "%d\t%d\t%f\n", i, j, uT[i*(N+1)+j]);
+        }
+    }
+    fclose(f);
 
     free(uT);
     free(u0);
