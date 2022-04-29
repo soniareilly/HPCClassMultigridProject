@@ -84,6 +84,68 @@ __global__ void restriction(double *u, double *up, int n)
         u[ix*nnew+iy] = up[(2*ix-1)*(n+1)+(2*iy-1)];
 }
 
+__global__ void rhs(double* rhs, double* u, 
+                    int N, 
+                    double* v1, double* v2, 
+                    double dt, double nu, double dx)
+{
+    int n = N+1;
+
+    __shared__ double uloc[1024];
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    if ((i < n) && (j < n)) {
+    uloc[threadIdx.x*blockDim.y + threadIdx.y] = u[i*n+j];
+    } else {
+    uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
+    }
+
+    __syncthreads();
+
+    double v1i = v1[i*n+j];
+    double v2i = v2[i*n+j];
+    double r = R(dt, dx);
+    double a = COEFF(-v2i,nu,dx,r);
+    double b = COEFF( v2i,nu,dx,r);
+    double c = COEFF(-v1i,nu,dx,r);
+    double d = COEFF( v1i,nu,dx,r);
+
+    double up = 0.0;
+    double dn = 0.0;
+    double lf = 0.0;
+    double rt = 0.0;
+
+    if (threadIdx.x > 0) {
+    up = uloc[(threadIdx.x-1)*blockDim.y + threadIdx.y];
+    } else if (i > 0) {
+    up = u[(i-1)*n+j];
+    }
+
+    if (threadIdx.y > 0) {
+    lf = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
+    } else if (j > 0) {
+    lf = u[i*n+j-1];
+    }
+
+    if (threadIdx.x < blockDim.x-1) {
+    dn = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
+    } else if (i < n-1) {
+    dn = u[(i+1)*n+j];
+    }
+
+    if (threadIdx.y < blockDim.y-1) {
+    rt = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
+    } else if (j < n-1) {
+    rt = u[i*n+j+1];
+    }
+
+    __syncthreads();
+
+    if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
+        double uij = uloc[threadIdx.x*blockDim.y + threadIdx.y];
+    r[i*n+j] = (1.0+4.0*r*nu)*uij - c*up - d*dn - a*lf - b*rt;
+}
+
 __global__ void residual(double* r, double* u, double* rhs, 
                          int N, 
                          double* v1, double* v2, 
@@ -99,6 +161,51 @@ __global__ void residual(double* r, double* u, double* rhs,
     } else {
     uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
     }
+
+    __syncthreads();
+
+    double v1i = v1[i*n+j];
+    double v2i = v2[i*n+j];
+    double r = R(dt, dx);
+    double a = COEFF(-v2i,nu,dx,r);
+    double b = COEFF( v2i,nu,dx,r);
+    double c = COEFF(-v1i,nu,dx,r);
+    double d = COEFF( v1i,nu,dx,r);
+
+    double up = 0.0;
+    double dn = 0.0;
+    double lf = 0.0;
+    double rt = 0.0;
+
+    if (threadIdx.x > 0) {
+    up = uloc[(threadIdx.x-1)*blockDim.y + threadIdx.y];
+    } else if (i > 0) {
+    up = u[(i-1)*n+j];
+    }
+
+    if (threadIdx.y > 0) {
+    lf = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
+    } else if (j > 0) {
+    lf = u[i*n+j-1];
+    }
+
+    if (threadIdx.x < blockDim.x-1) {
+    dn = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
+    } else if (i < n-1) {
+    dn = u[(i+1)*n+j];
+    }
+
+    if (threadIdx.y < blockDim.y-1) {
+    rt = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
+    } else if (j < n-1) {
+    rt = u[i*n+j+1];
+    }
+
+    __syncthreads();
+
+    if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
+        double uij = uloc[threadIdx.x*blockDim.y + threadIdx.y];
+    r[i*n+j] = (rhs[i*n+j] - (1.0-4.0*r*nu)*uij - c*up - d*dn - a*lf - b*rt);
 }
 
 // Kernel to initialize u0 as a Gaussian
@@ -151,9 +258,9 @@ __global__ void jacobi_kernel(double* u, double* rhs,
     double d = COEFF( v1i,nu,dx,r);
 
     double up = 0.0;
-    double down = 0.0;
-    double left = 0.0;
-    double right = 0.0;
+    double dn = 0.0;
+    double lf = 0.0;
+    double rt = 0.0;
 
     if (threadIdx.x > 0) {
     up = uloc[(threadIdx.x-1)*blockDim.y + threadIdx.y];
@@ -162,27 +269,27 @@ __global__ void jacobi_kernel(double* u, double* rhs,
     }
 
     if (threadIdx.y > 0) {
-    left = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
+    lf = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
     } else if (j > 0) {
-    left = u[i*n+j-1];
+    lf = u[i*n+j-1];
     }
 
     if (threadIdx.x < blockDim.x-1) {
-    down = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
+    dn = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
     } else if (i < n-1) {
-    down = u[(i+1)*n+j];
+    dn = u[(i+1)*n+j];
     }
 
     if (threadIdx.y < blockDim.y-1) {
-    right = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
+    rt = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
     } else if (j < n-1) {
-    right = u[i*n+j+1];
+    rt = u[i*n+j+1];
     }
 
     __syncthreads();
 
     if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
-    u[i*n+j] = 0.25*(dx*dx*f[i*n+j] + c*up + d*down + a*left + b*right);
+    u[i*n+j] = (rhs[i*n+j] + c*up + d*dn + a*lf + b*rt)/(1.0-4.0*r*nu);
     }
 }
 
@@ -209,9 +316,9 @@ __global__ void gs_ker(double* u, double* rhs,
         double d = COEFF( v1i,nu,dx,r);
 
         double up = 0.0;
-        double down = 0.0;
-        double left = 0.0;
-        double right = 0.0;
+        double dn = 0.0;
+        double lf = 0.0;
+        double rt = 0.0;
 
         // copy a chunk into shared memory
         __shared__ double uloc[1024];
@@ -230,27 +337,27 @@ __global__ void gs_ker(double* u, double* rhs,
         }
 
         if (threadIdx.y > 0) {
-        left = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
+        lf = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
         } else if (j > 0) {
-        left = u[i*n+j-1];
+        lf = u[i*n+j-1];
         }
 
         if (threadIdx.x < blockDim.x-1) {
-        down = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
+        dn = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
         } else if (i < n-1) {
-        down = u[(i+1)*n+j];
+        dn = u[(i+1)*n+j];
         }
 
         if (threadIdx.y < blockDim.y-1) {
-        right = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
+        rt = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
         } else if (j < n-1) {
-        right = u[i*n+j+1];
+        rt = u[i*n+j+1];
         }
 
         __syncthreads();
 
         if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
-        u[i*n+j] = 0.25*(dx*dx*f[i*n+j] + c*up + d*down + a*left + b*right);
+        u[i*n+j] = (rhs[i*n+j] + c*up + d*dn + a*lf + b*rt)/(1.0-4.0*r*nu);
         }
     }
 }
