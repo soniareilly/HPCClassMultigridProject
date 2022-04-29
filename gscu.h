@@ -13,4 +13,4 @@ __global__ void gaussian_u0(double* u0, double x0, double y0, double sigma, int 
 __global__ void rotating_v(double* u0, double kx, double ky, int n, double dx);
 
 double compute_norm(double* a, int N);
-void gauss_seidel(double* u, double* rhs, long N, double* v1, double* v2, double dt, double nu, double dx)
+void gauss_seidel(double* u, double* rhs, long N, double* v1, double* v2, double dt, double nu, double dx);
