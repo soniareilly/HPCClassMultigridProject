@@ -101,6 +101,27 @@ __global__ void residual(double* r, double* u, double* rhs,
     }
 }
 
+// Kernel to initialize u0 as a Gaussian
+__global__ void gaussian_u0(double* u0, double x0, double y0, double sigma, int n, double dx)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    if ((i < n+1) && (j < n+1)){
+        u0[i*(n+1)+j] = exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
+    }
+}
+
+// Kernel to initialize v1 and v2 as a rotating field
+__global__ void rotating_v(double* u0, double kx, double ky, int n, double dx)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    if ((i < n+1) && (j < n+1)){
+        v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);
+        v2[i*(N+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);
+    }
+}
+
 // Kernel to perform Jacobi iteration
 __global__ void jacobi_kernel(double* u, double* rhs, 
                               int N, 
