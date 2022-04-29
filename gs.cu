@@ -166,66 +166,86 @@ __global__ void jacobi_kernel(double* u, double* rhs,
 }
 
 // Red-Black Gauss-Seidel
-__global__ void gauss_seidel(double* u, double* rhs, 
-                            long N, 
-                            double* v1, double* v2, 
-                            double dt, double nu, double dx)
+__global__ void gs_ker(double* u, double* rhs, 
+                       long N, 
+                       double* v1, double* v2, 
+                       double dt, double nu, double dx,
+                       int rb)
 {
-    // Call with at least (N/2+1) x (N/2+1) threads
-    // NOTE!! n = N+1
-    long n = N+1;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
-    double v1i = v1[i*n+j];
-    double v2i = v2[i*n+j];
-    double r = R(dt, dx);
-    double a = COEFF(-v2i,nu,dx,r);
-    double b = COEFF( v2i,nu,dx,r);
-    double c = COEFF(-v1i,nu,dx,r);
-    double d = COEFF( v1i,nu,dx,r);
 
-    double up = 0.0;
-    double down = 0.0;
-    double left = 0.0;
-    double right = 0.0;
+    if ((i+j)%2 == rb){
+        // NOTE!! n = N+1
+        long n = N+1;
 
-    // copy a chunk into shared memory
-    __shared__ double uloc[1024];
-    if ((i < n) && (j < n)) {
-    uloc[threadIdx.x*blockDim.y + threadIdx.y] = u[i*n+j];
-    } else {
-    uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
+        double v1i = v1[i*n+j];
+        double v2i = v2[i*n+j];
+        double r = R(dt, dx);
+        double a = COEFF(-v2i,nu,dx,r);
+        double b = COEFF( v2i,nu,dx,r);
+        double c = COEFF(-v1i,nu,dx,r);
+        double d = COEFF( v1i,nu,dx,r);
+
+        double up = 0.0;
+        double down = 0.0;
+        double left = 0.0;
+        double right = 0.0;
+
+        // copy a chunk into shared memory
+        __shared__ double uloc[1024];
+        if ((i < n) && (j < n)) {
+        uloc[threadIdx.x*blockDim.y + threadIdx.y] = u[i*n+j];
+        } else {
+        uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
+        }
+
+        __syncthreads();
+
+        if (threadIdx.x > 0) {
+        up = uloc[(threadIdx.x-1)*blockDim.y + threadIdx.y];
+        } else if (i > 0) {
+        up = u[(i-1)*n+j];
+        }
+
+        if (threadIdx.y > 0) {
+        left = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
+        } else if (j > 0) {
+        left = u[i*n+j-1];
+        }
+
+        if (threadIdx.x < blockDim.x-1) {
+        down = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
+        } else if (i < n-1) {
+        down = u[(i+1)*n+j];
+        }
+
+        if (threadIdx.y < blockDim.y-1) {
+        right = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
+        } else if (j < n-1) {
+        right = u[i*n+j+1];
+        }
+
+        __syncthreads();
+
+        if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
+        u[i*n+j] = 0.25*(dx*dx*f[i*n+j] + c*up + d*down + a*left + b*right);
+        }
     }
+}
 
-    __syncthreads();
-
-    if (threadIdx.x > 0) {
-    up = uloc[(threadIdx.x-1)*blockDim.y + threadIdx.y];
-    } else if (i > 0) {
-    up = u[(i-1)*n+j];
-    }
-
-    if (threadIdx.y > 0) {
-    left = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
-    } else if (j > 0) {
-    left = u[i*n+j-1];
-    }
-
-    if (threadIdx.x < blockDim.x-1) {
-    down = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
-    } else if (i < n-1) {
-    down = u[(i+1)*n+j];
-    }
-
-    if (threadIdx.y < blockDim.y-1) {
-    right = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
-    } else if (j < n-1) {
-    right = u[i*n+j+1];
-    }
-
-    __syncthreads();
-
-    if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
-    u[i*n+j] = 0.25*(dx*dx*f[i*n+j] + c*up + d*down + a*left + b*right);
-    }
+// Red-Black Gauss-Seidel
+void gauss_seidel(double* u, double* rhs, 
+                  long N, 
+                  double* v1, double* v2, 
+                  double dt, double nu, double dx)
+{
+    // calling kernel with N instead of N+1, since bottom & right borders are all 0's
+    // allows u to fit in fewer blocks, since N is a power of 2
+    dim3 threadsPerBlock(32,32);
+    dim3 numBlocks(CEIL(N,threadsPerBlock.x), CEIL(N,threadsPerBlock.y));
+    // red points
+    gs_ker<<<numBlocks, threadsPerBlock>>>(u,rhs,N,v1,v2,dt,nu,dx,0);
+    // black points
+    gs_ker<<<numBlocks, threadsPerBlock>>>(u,rhs,N,v1,v2,dt,nu,dx,1);
 }
