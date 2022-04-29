@@ -174,19 +174,8 @@ __global__ void gauss_seidel(double* u, double* rhs,
     // Call with at least (N/2+1) x (N/2+1) threads
     // NOTE!! n = N+1
     long n = N+1;
-
-    // copy a chunk into shared memory
-    __shared__ double uloc[1024];
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
-    if ((i < n) && (j < n)) {
-    uloc[threadIdx.x*blockDim.y + threadIdx.y] = u[i*n+j];
-    } else {
-    uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
-    }
-
-    __syncthreads();
-
     double v1i = v1[i*n+j];
     double v2i = v2[i*n+j];
     double r = R(dt, dx);
@@ -199,6 +188,16 @@ __global__ void gauss_seidel(double* u, double* rhs,
     double down = 0.0;
     double left = 0.0;
     double right = 0.0;
+
+    // copy a chunk into shared memory
+    __shared__ double uloc[1024];
+    if ((i < n) && (j < n)) {
+    uloc[threadIdx.x*blockDim.y + threadIdx.y] = u[i*n+j];
+    } else {
+    uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
+    }
+
+    __syncthreads();
 
     if (threadIdx.x > 0) {
     up = uloc[(threadIdx.x-1)*blockDim.y + threadIdx.y];
@@ -214,13 +213,13 @@ __global__ void gauss_seidel(double* u, double* rhs,
 
     if (threadIdx.x < blockDim.x-1) {
     down = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
-    } else if (i < n) {
+    } else if (i < n-1) {
     down = u[(i+1)*n+j];
     }
 
     if (threadIdx.y < blockDim.y-1) {
     right = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
-    } else if (j < n) {
+    } else if (j < n-1) {
     right = u[i*n+j+1];
     }
 
