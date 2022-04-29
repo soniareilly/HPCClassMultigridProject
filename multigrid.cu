@@ -188,9 +188,6 @@ int main(){
     int N = 256;                    // Finest grid size. MUST BE A POWER OF 2
     int maxlvl = int(log2(N))-4;    // Levels of multigrid. n = 16 is solved exactly
     double dx = 1.0/N;
-    
-    // allocate final array
-    double* uTcuda = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
 
     // define parameters of u0 and v1,v2
     double x0 = 0.2, y0 = 0.4;
@@ -200,7 +197,7 @@ int main(){
 
     int i,j;
 
-    // CUDA Malloc u0, v1, v2
+    // CUDA Malloc u0, uT, v1, v2
 
     // CUDA initialize u0, v1, v2
 
@@ -213,46 +210,23 @@ int main(){
     double tol = 1e-6;              // relative tolerance for mg_outer convergence
     int shape = 1;                  // V-cycle or W-cycle (here, V-cycle)
 
-    // Referenced computation on CPU with 1 thread
-    double tt = omp_get_wtime();
-    // #pragma omp parallel num_threads(ntr) {
-    timestepper(uTref, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
-    // }
-    printf("\nCPU (1 thread for reference) time: %f s\n", omp_get_wtime()-tt);
 
-    // Computation on CPU with 16 threads (OMP)
-    double error = 0;
+    // Computation on GPU
     tt = omp_get_wtime();
-    int ntr = 16; // number of threads
-    #pragma omp parallel num_threads(ntr) 
-    {
-    timestepper(uTomp, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
-    }
-    printf("\nCPU with OMP (%d threads) time: %f s\n", ntr, omp_get_wtime()-tt);
-    // compute error wrt the referenced solution
-     for (i = 0; i < N+1; i++){
-        for (j = 0; j < N+1; j++){
-            error += fabs(uTomp[i*(N+1)+j]-uTref[i*(N+1)+j]);
-        }
-    }
-    printf("Error (compared to the referenced solution) = %10e\n", error);
+    timestepper(uTcuda, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
+    printf("\nGPU time: %f s\n", ntr, omp_get_wtime()-tt);
 
-    // Computation on GPU with kernel functions
-    // use u0cuda
+    // allocate final array
+    double* uTcuda = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
 
     // Print final uT to file
-    FILE *f = fopen("uT.txt","w");
+    FILE *f = fopen("uTcuda.txt","w");
     for (i = 0; i < N+1; i++){
         for (j = 0; j < N+1; j++){
-            fprintf(f, "%d\t%d\t%f\n", i, j, uTref[i*(N+1)+j]);
+            fprintf(f, "%d\t%d\t%f\n", i, j, uTcuda[i*(N+1)+j]);
         }
     }
     fclose(f);
 
-    free(uTref);
-    free(uTomp);
     free(uTcuda);
-    free(u0);
-    free(v1);
-    free(v2);
 }
