@@ -148,13 +148,13 @@ __global__ void jacobi_kernel(double* u, double* rhs,
 
     if (threadIdx.x < blockDim.x-1) {
     down = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
-    } else if (i < n) {
+    } else if (i < n-1) {
     down = u[(i+1)*n+j];
     }
 
     if (threadIdx.y < blockDim.y-1) {
     right = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
-    } else if (j < n) {
+    } else if (j < n-1) {
     right = u[i*n+j+1];
     }
 
