@@ -80,8 +80,6 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
     #pragma omp taskwait
 }
 
-}
-
 
 double compute_norm(double *res, long n) {
 

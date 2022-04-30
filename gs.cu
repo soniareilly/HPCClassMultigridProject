@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #define R(dt,dx)             (0.5*(dt)/((dx)*(dx)))
-#define COEFF(v, nu, dx, r)  ((r)*(0.5*(v)*(dt)+(nu)))
+#define COEFF(v, nu, dx, r)  ((r)*(0.5*(v)*(dx)+(nu)))
 #define CEIL(x,y)            (((x) + (y) - 1)/(y))
 
 __global__ void square_ker(double* a, long n)
@@ -206,7 +206,7 @@ __global__ void residual(double* r, double* u, double* rhs,
 
     if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
         double uij = uloc[threadIdx.x*blockDim.y + threadIdx.y];
-    r[i*n+j] = (rhs[i*n+j] - (1.0-4.0*r*nu)*uij - c*up - d*dn - a*lf - b*rt);
+    r[i*n+j] = (rhs[i*n+j] - (1.0-4.0*r*nu)*uij + c*up + d*dn + a*lf + b*rt);
 }
 
 // Kernel to initialize u0 as a Gaussian
@@ -290,11 +290,10 @@ __global__ void jacobi_kernel(double* u, double* rhs,
     __syncthreads();
 
     if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
-    u[i*n+j] = (rhs[i*n+j] + c*up + d*dn + a*lf + b*rt)/(1.0-4.0*r*nu);
+    u[i*n+j] = (rhs[i*n+j] - c*up - d*dn - a*lf - b*rt)/(1.0-4.0*r*nu);
     }
 }
 
-// Red-Black Gauss-Seidel
 __global__ void gs_ker(double* u, double* rhs, 
                        long N, 
                        double* v1, double* v2, 
@@ -304,33 +303,34 @@ __global__ void gs_ker(double* u, double* rhs,
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
 
+    // NOTE!! n = N+1
+    long n = N+1;
+
+    double v1i = v1[i*n+j];
+    double v2i = v2[i*n+j];
+    double r = R(dt, dx);
+    double a = COEFF(-v2i,nu,dx,r);
+    double b = COEFF( v2i,nu,dx,r);
+    double c = COEFF(-v1i,nu,dx,r);
+    double d = COEFF( v1i,nu,dx,r);
+
+    double up = 0.0;
+    double dn = 0.0;
+    double lf = 0.0;
+    double rt = 0.0;
+
+    // copy a chunk into shared memory
+    __shared__ double uloc[1024];
+    if ((i < n) && (j < n)) {
+    uloc[threadIdx.x*blockDim.y + threadIdx.y] = u[i*n+j];
+    } else {
+    uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
+    }
+
+    __syncthreads();
+
+    double unew = uloc[threadIdx.x*blockDim.y + threadIdx.y];
     if ((i+j)%2 == rb){
-        // NOTE!! n = N+1
-        long n = N+1;
-
-        double v1i = v1[i*n+j];
-        double v2i = v2[i*n+j];
-        double r = R(dt, dx);
-        double a = COEFF(-v2i,nu,dx,r);
-        double b = COEFF( v2i,nu,dx,r);
-        double c = COEFF(-v1i,nu,dx,r);
-        double d = COEFF( v1i,nu,dx,r);
-
-        double up = 0.0;
-        double dn = 0.0;
-        double lf = 0.0;
-        double rt = 0.0;
-
-        // copy a chunk into shared memory
-        __shared__ double uloc[1024];
-        if ((i < n) && (j < n)) {
-        uloc[threadIdx.x*blockDim.y + threadIdx.y] = u[i*n+j];
-        } else {
-        uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
-        }
-
-        __syncthreads();
-
         if (threadIdx.x > 0) {
         up = uloc[(threadIdx.x-1)*blockDim.y + threadIdx.y];
         } else if (i > 0) {
@@ -355,12 +355,14 @@ __global__ void gs_ker(double* u, double* rhs,
         rt = u[i*n+j+1];
         }
 
-        __syncthreads();
-
         if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
-        u[i*n+j] = (rhs[i*n+j] + c*up + d*dn + a*lf + b*rt)/(1.0-4.0*r*nu);
+        unew = (rhs[i*n+j] - c*up - d*dn - a*lf - b*rt)/(1.0-4.0*r*nu);
         }
     }
+
+    __syncthreads();
+
+    if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1))    u[i*n+j] = unew;
 }
 
 // Red-Black Gauss-Seidel
