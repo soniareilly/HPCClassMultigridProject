@@ -29,9 +29,9 @@ void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double 
     double aa,bb,cc,dd,rr; // LHS coeffficients
     rr = r(h,k);
 
-    #pragma omp parallel num_threads(ntr)
+    // #pragma omp parallel num_threads(ntr)
 {
-    #pragma omp for collapse(2)
+    // #pragma omp for collapse(2)
     for (long i = 1; i < n; i++){
         for (long j = 1; j < n; j++) {
             
@@ -57,7 +57,7 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
     rr = r(h,k);
     // printf("num threads:%d\n",omp_get_num_threads());
 
-    #pragma omp parallel num_threads(ntr)
+    // #pragma omp parallel num_threads(ntr)
 {
     // #pragma omp for collapse(2)
     for (long i = 1; i < n; i++){
@@ -79,13 +79,13 @@ double compute_norm(double *res, long n, int ntr) {
 
     double tmp = 0.0;
 
-    #pragma omp parallel num_threads(ntr)
+    // #pragma omp parallel num_threads(ntr)
 {
-    #pragma omp for collapse(2) //ordered //reduction(+: tmp)
+    // #pragma omp for collapse(2) //ordered //reduction(+: tmp)
     for (long i = 1; i < n; i++){
         for (long j = 1; j < n; j++) {
             
-            #pragma omp atomic update
+            // #pragma omp atomic update
             tmp += res[i*(n+1)+j] * res[i*(n+1)+j];
             
         }
