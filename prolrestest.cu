@@ -76,7 +76,7 @@ __global__ void residual_cu(double* res, double* u, double* rhs,
 
     if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
         double uij = uloc[threadIdx.x*blockDim.y + threadIdx.y];
-    res[i*n+j] = (rhs[i*n+j] - (1.0-4.0*r*nu)*uij + c*up + d*dn + a*lf + b*rt);
+    res[i*n+j] = rhs[i*n+j] - ((1.0-4.0*r*nu)*uij + c*up + d*dn + a*lf + b*rt);
     }
 }
 

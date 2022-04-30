@@ -147,7 +147,7 @@ __global__ void compute_rhs(double* rhs, double* u,
     rhs[i*n+j] = (1.0+4.0*r*nu)*uij - c*up - d*dn - a*lf - b*rt;
 }
 
-__global__ void residual(double* r, double* u, double* rhs, 
+__global__ void residual(double* res, double* u, double* rhs, 
                          int N, 
                          double* v1, double* v2, 
                          double dt, double nu, double dx)
@@ -206,7 +206,8 @@ __global__ void residual(double* r, double* u, double* rhs,
 
     if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
         double uij = uloc[threadIdx.x*blockDim.y + threadIdx.y];
-    r[i*n+j] = (rhs[i*n+j] - (1.0-4.0*r*nu)*uij + c*up + d*dn + a*lf + b*rt);
+    res[i*n+j] = rhs[i*n+j] - ((1.0-4.0*r*nu)*uij + c*up + d*dn + a*lf + b*rt);
+    }
 }
 
 // Kernel to initialize u0 as a Gaussian
