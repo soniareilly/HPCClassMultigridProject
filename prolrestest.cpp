@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
+#include <omp.h>
 
 // u is row major
 
@@ -47,19 +49,26 @@ int main(){
     u = (double*) malloc ( sizeof(double) * (2*N+1)*(2*N+1) );
     up2 = (double*) malloc ( sizeof(double) * (N+1)*(N+1) );
 
-    #pragma omp parallel num_threads(4)
+    #pragma omp parallel num_threads(16)
     {
     
     #pragma omp single
     {
-
+    int tid = omp_get_thread_num();
+    if(tid == 0) printf("number of threads: %d\n", omp_get_num_threads());
     // Initialize up
-    #pragma omp for
+    //#pragma omp for
     for (int i = 0; i < N+1; i++){
         for(int j = 0; j < N+1; j++){
+            #pragma omp task
+{           
+            tid = omp_get_thread_num();
+            printf("thread id: %d\n", tid);
             up[i*(N+1)+j] = i+j;
+}
         }
     }
+    #pragma omp taskwait
 
     printf("Original matrix\n");
     for (int i = 0; i < N+1; ++i)
