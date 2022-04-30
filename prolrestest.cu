@@ -77,23 +77,18 @@ __global__ void residual_cu(double* res, double* u, double* rhs,
     if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
         double uij = uloc[threadIdx.x*blockDim.y + threadIdx.y];
     res[i*n+j] = (rhs[i*n+j] - (1.0-4.0*r*nu)*uij + c*up + d*dn + a*lf + b*rt);
+    }
 }
 
-void residual(double *res, double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h) {
+void residual(double *res, double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h)
     // k: time step (dt)
     // h: spatial discretization step (dx=dy)
     // r: dt/(2*dx*dx)
-
+{
     double aa,bb,cc,dd,rr; // LHS coeffficients
     rr = r(h,k);
-    // printf("num threads:%d\n",omp_get_num_threads());
 
-    // #pragma omp parallel num_threads(ntr)
-{
-    // #pragma omp for collapse(2)
     for (long i = 1; i < n; i++){
-        //#pragma omp task
-{
         for (long j = 1; j < n; j++) {
             aa = a(v2[i*(n+1)+j],nu,h,rr);
             bb = b(v2[i*(n+1)+j],nu,h,rr);
@@ -102,9 +97,7 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
             res[i*(n+1)+j] = rhs[i*(n+1)+j] - ((1.0-4.0*rr*nu)*u[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)]);
             
         }
-}
     }
-    //#pragma omp taskwait
 }
 
 int main()
