@@ -2,7 +2,7 @@ TAR1 = $(basename $(wildcard *.cpp))
 TAR2 = $(wildcard *.o)
 CU1 = $(basename $(wildcard *.cu))
 
-all: compile, cuda
+all: compile cuda
 
 compile: link1
 	g++ -o multigrid gs.o multigrid.o -O0 -fopenmp -std=c++11 -lgomp
@@ -20,7 +20,7 @@ cuda1: cuda2
 	nvcc -c -o multigrid_cu.o -O0 multigrid.cu
 
 cuda2: 
-	nvcc -c -o gscu.0 -O0 gs.cu
+	nvcc -c -o gscu.o -O0 gs.cu
 
 clean:
 	-$(RM) $(TAR1) $(TAR2) $(CU1) *~
