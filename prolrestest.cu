@@ -43,7 +43,7 @@ __global__ void reduction_kernel(double* sum, const double* a, long N)
     if (threadIdx.x == 0) sum[blockIdx.x] = smem[threadIdx.x];
 }
 
-double compute_norm(double* a, int N)
+double compute_norm_cu(double* a, int N)
 {
     long n = (N+1)*(N+1);
     long nb = CEIL(n,1024); 
@@ -119,12 +119,12 @@ int main()
     cudaMemcpy(cuv2, v2, sizeof(double)*n*n, cudaMemcpyHostToDevice);
     //cudaMemcpy(curhs, rhs, sizeof(double)*n*n, cudaMemcpyHostToDevice);
 
-    compute_rhs(rhs, u, N, v1, v2, dt, nu, dx);
+    double nm = compute_norm(u,N);
     dim3 threadsPerBlock(32,32);
     dim3 numBlocks(CEIL(n,threadsPerBlock.x), CEIL(n,threadsPerBlock.y));
-    compute_rhs_cu<<<numBlocks,threadsPerBlock>>>(curhs, cuu, N, cuv1, cuv2, dt, nu, dx);
-    cudaMemcpy(v1, curhs, sizeof(double)*n*n, cudaMemcpyDeviceToHost);
-
+    double cunm = compute_norm(cuu,N);
+    //cudaMemcpy(v1, curhs, sizeof(double)*n*n, cudaMemcpyDeviceToHost);
+/*
     for (i = 0; i < N+1; ++i)
     {
         for (j = 0; j < N+1; ++j)
@@ -142,6 +142,9 @@ int main()
         }
         printf("\n");
     }
+*/
+    println("%g\n", nm);
+    println("%g\n", cunm);
 
     free(u);
     free(v1);
