@@ -13,6 +13,12 @@
 #define PI 3.1415926535897932
 #define CEIL(x,y) (((x) + (y) - 1)/(y))
 
+__global__ void vecadd(const double* a, const double* b, double* c, long n)
+{
+    long i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < n)    a[i] = b[i]+c[i];
+}
+
 // inner loop of multigrid, computes one V or W-cycle and recurses
 void mg_inner(double** u, double** rhs, 
               double** v1, double** v2,
@@ -78,13 +84,13 @@ nu                       - diffusion parameter
             // restrict residual to coarser level
             restriction<<<numBrest,threadsPerBlock>>>(rhsi1, tmp, n);
             // set u[lvl+1] to 0
-            for (i = 0; i < (nnew+1)*(nnew+1); ++i) ui1[i] = 0;
+            cudaMemset(ui1, 0, (nnew+1)*(nnew+1)*sizeof(double));
             // Recurse at coarser level
             mg_inner(u, rhs, v1, v2, tmp, dx2, nnew, lvl+1, maxlvl, shape, dt, nu);
             // Prolong solution back to fine level
             prolongation<<<numBrest,threadsPerBlock>>>(tmp, ui1, nnew);
             // update u
-            for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp[i];
+            vecadd<<<CEIL((n+1)*(n+1),1024),1024>>>(ui, ui, tmp, (n+1)*(n+1));
             // smoothing
             for (iter = 0; iter < NITER; ++iter)
             {
@@ -140,17 +146,6 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     double *tmp;
   
     // initialize top (finest) levels of towers
-    // utow[0] = u0; v1tow[0] = v1; v2tow[0] = v2; 
-/*    double *upt, *v1pt, *v2pt, *rhspt;
-    cudaMalloc(&upt,   (n+1)*(n+1)*sizeof(double));
-    cudaMalloc(&v1pt,  (n+1)*(n+1)*sizeof(double));
-    cudaMalloc(&v2pt,  (n+1)*(n+1)*sizeof(double));
-    cudaMalloc(&rhspt, (n+1)*(n+1)*sizeof(double));
-    utow[0] = upt;
-    v1tow[0] = v1pt;
-    v2tow[0] = v2pt;
-    rhstow[0] = rhspt;
-*/
     cudaMalloc(&utow[0],   (n+1)*(n+1)*sizeof(double));
     cudaMalloc(&v1tow[0],  (n+1)*(n+1)*sizeof(double));
     cudaMalloc(&v2tow[0],  (n+1)*(n+1)*sizeof(double));
