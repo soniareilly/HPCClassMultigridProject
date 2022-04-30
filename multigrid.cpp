@@ -242,11 +242,14 @@ int main(){
     // Computation on CPU with 16 threads (OMP)
     double error = 0;
     tt = omp_get_wtime();
-    ntr = 16; // number of threads
-    // #pragma omp parallel num_threads(ntr) 
-    // {
+    ntr = 4; // number of threads
+    #pragma omp parallel num_threads(ntr) 
+    {
+    #pragma omp single
+    {
     timestepper(uTomp, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape, ntr);
-    // }
+    }
+    }
     printf("\nCPU with OMP (%d threads) time: %f s\n", ntr, omp_get_wtime()-tt);
     // compute error wrt the referenced solution
      for (i = 0; i < N+1; i++){

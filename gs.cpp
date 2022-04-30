@@ -33,6 +33,8 @@ void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double 
 {
     // #pragma omp for collapse(2)
     for (long i = 1; i < n; i++){
+        #pragma omp task
+{
         for (long j = 1; j < n; j++) {
             
             aa = a(v2[i*(n+1)+j],nu,h,rr);
@@ -43,7 +45,9 @@ void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double 
             // printf("rhs:%.6f\n", rhs[i*(n+1)+j]);
             
         }
+}
     }
+    #pragma omp taskwait
 }
 
 }
@@ -61,6 +65,8 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
 {
     // #pragma omp for collapse(2)
     for (long i = 1; i < n; i++){
+        #pragma omp task
+{
         for (long j = 1; j < n; j++) {
             aa = a(v2[i*(n+1)+j],nu,h,rr);
             bb = b(v2[i*(n+1)+j],nu,h,rr);
@@ -69,7 +75,9 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
             res[i*(n+1)+j] = rhs[i*(n+1)+j] - ((1.0-4.0*rr*nu)*u[i*(n+1)+j] + cc*u[(i-1)*(n+1)+j] + aa*u[i*(n+1)+(j-1)] + dd*u[(i+1)*(n+1)+j] + bb*u[i*(n+1)+(j+1)]);
             
         }
+}
     }
+    #pragma omp taskwait
 }
 
 }
@@ -83,13 +91,17 @@ double compute_norm(double *res, long n, int ntr) {
 {
     // #pragma omp for collapse(2) //ordered //reduction(+: tmp)
     for (long i = 1; i < n; i++){
+        #pragma omp task
+{
         for (long j = 1; j < n; j++) {
             
-            // #pragma omp atomic update
+            #pragma omp atomic update
             tmp += res[i*(n+1)+j] * res[i*(n+1)+j];
             
         }
+}
     }
+    #pragma omp taskwait
 }
     return sqrt(tmp);
 }
@@ -102,11 +114,13 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
     double aa,bb,cc,dd,rr; // LHS coeffficients
     rr = r(h,k);
 
-    #pragma omp parallel num_threads(ntr)
+    //#pragma omp parallel num_threads(ntr)
 { 
         // GS iteration to update red points
-        #pragma omp for collapse(2) nowait
+        //#pragma omp for collapse(2) nowait
         for (long i=1; i < n; i+=2) { // iterate through every odd row of red points (starting at 1)
+                #pragma omp task
+{printf("i:%d, thread id:%d\n",i,omp_get_thread_num());
                 for (long j=1; j < n; j+=2) { // iterate through every other column of red points at each row
                     
                     aa = a(v2[i*(n+1)+j],nu,h,rr);
@@ -117,11 +131,14 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
                     u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
                     
                 }
+}
                 
         }
 
-        #pragma omp for collapse(2)
+        //#pragma omp for collapse(2)
         for (long i=2; i < n; i+=2) { // iterate through every even row of red points (starting at 2)
+                #pragma omp task
+{
                 for (long j=2; j < n; j+=2) {
                     
                     aa = a(v2[i*(n+1)+j],nu,h,rr);
@@ -131,25 +148,30 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
                     u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
                     
                 }
-                
+}               
         }
+        #pragma omp taskwait
 	
         // GS iteration to update black points
-        #pragma omp for collapse(2) nowait
+        //#pragma omp for collapse(2) nowait
         for (long i=1; i < n; i+=2) { // iterate through every odd row of black points (starting at 2)
-            for (long j=2; j < n; j+=2) { // iterate through every other column of black points at each row
+                #pragma omp task
+{
+                for (long j=2; j < n; j+=2) { // iterate through every other column of black points at each row
                     
                     aa = a(v2[i*(n+1)+j],nu,h,rr);
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
-                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
-                    
+                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);                   
                 }
+}
         }
 
-        #pragma omp for collapse(2)
+        //#pragma omp for collapse(2)
         for (long i=2; i < n; i+=2) { // iterate through every even row of black points (starting at 1)
+                #pragma omp task
+{
                 for (long j=1; j < n; j+=2) {
                     
                     aa = a(v2[i*(n+1)+j],nu,h,rr);
@@ -159,8 +181,10 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
                     u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
                     
                 }
+}
         }
 }
+        #pragma omp taskwait
         // double* utmp = u;
         // u = unew;
         // unew = utmp;
@@ -207,10 +231,12 @@ void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, doubl
 
 void prolongation(double* up, double* u, int n, int ntr){
     // up is the output, size 2n+1 x 2n+1, u is the input, size n+1 x n+1
-    #pragma omp parallel num_threads(ntr)
+    //#pragma omp parallel num_threads(ntr)
 {
-    #pragma omp for collapse(2)
+    //#pragma omp for collapse(2)
     for (int i = 0; i < n; i++){
+        #pragma omp task
+{
         for (int j = 0; j < n; j++){
             
             up[2*i*(2*n+1) + 2*j] = u[i*(n+1) + j];
@@ -219,10 +245,13 @@ void prolongation(double* up, double* u, int n, int ntr){
             up[(2*i+1)*(2*n+1) + 2*j+1] = (u[i*(n+1) + j] + u[(i+1)*(n+1) + j] + u[i*(n+1) + j+1] + u[(i+1)*(n+1) + j+1])/4;
             
         }
+}
     }
 
     // right and bottom borders
-    #pragma omp for
+    //#pragma omp for
+    #pragma omp task
+{
     for (int i = 0; i < n; i++){
         // right border
         
@@ -234,16 +263,20 @@ void prolongation(double* up, double* u, int n, int ntr){
         
     }
 }
+    #pragma omp taskwait
+}
     // bottom right corner
     up[(2*n)*(2*n+1) + 2*n] = u[n*(n+1) + n];
 }
 
 void restriction(double* u, double* up, int n, int ntr){
     // u is the output, size n/2+1 x n/2+1, up is the input, size n+1 x n+1
-    #pragma omp parallel num_threads(ntr)
+    //#pragma omp parallel num_threads(ntr)
 {
-    #pragma omp for collapse(2)
+    //#pragma omp for collapse(2)
     for (int i = 0; i < n/2+1; i++){
+        #pragma omp task
+{
         for (int j = 0; j < n/2+1; j++){
             // More complicated way to do a restriction -- get this working if time permits
             //u[i*(n/2+1)+j] = (up[(2*i-1)*(n+1)+2*j-1] + 2*up[(2*i-1)*(n+1)+2*j] + up[(2*i-1)*(n+1)+2*j+1])/16;
@@ -255,7 +288,9 @@ void restriction(double* u, double* up, int n, int ntr){
             // printf("u:%.6f\n",u[i*(n/2+1)+j]);
             
         }
+}
     }
 }
+    #pragma omp taskwait
 
 }
