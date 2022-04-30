@@ -73,6 +73,18 @@ double compute_norm(double *res, long n)
     return sqrt(tmp);
 }
 
+// Kernel to initialize u0 as a Gaussian
+__global__ void gaussian_u0(double* u0, double x0, double y0, double sigma, int n, double dx)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    if ((i > 0) && (j > 0) && (i < n) && (j < n)){
+        u0[i*(n+1)+j] = exp(-sigma*( (i*dx-x0)*(i*dx-x0) + (j*dx-y0)*(j*dx-y0) ));
+    } else if ((i == 0) || (j == 0) || (i == n-1) || (j == n-1)){
+        u0[i*(n+1)+j] = 0.0;
+    }
+}
+
 int main()
 {
     int N = 8;
