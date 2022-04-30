@@ -21,7 +21,7 @@ inline double b(double v, double nu, double h, double r) {
 
 
 // compute rhs with u
-void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double k, double nu, double h, int ntr) {
+void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double k, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretization step (dx=dy)
     // r: dt/(2*dx*dx)
@@ -52,7 +52,7 @@ void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double 
 
 }
 
-void residual(double *res, double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h, int ntr) {
+void residual(double *res, double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretization step (dx=dy)
     // r: dt/(2*dx*dx)
@@ -83,7 +83,7 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
 }
 
 
-double compute_norm(double *res, long n, int ntr) {
+double compute_norm(double *res, long n) {
 
     double tmp = 0.0;
 
@@ -106,7 +106,7 @@ double compute_norm(double *res, long n, int ntr) {
     return sqrt(tmp);
 }
 
-void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h, int ntr) {
+void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h) {
     // k: time step (dt)
     // h: spatial discretization step (dx=dy)
     // r: dt/(2*dx*dx)
@@ -193,7 +193,7 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
 }
 
 
-void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h, int ntr) {
+void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h) {
 
     int i; int j;
 
@@ -203,7 +203,7 @@ void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, doubl
     // UPDATING RED POINTS
     // here we're assuming top left is red
     // interior
-    #pragma omp parallel for private(i,j) num_threads(ntr)
+    #pragma omp parallel for private(i,j)
     for (i = 1; i < n; i++) {
     	for (j = 2-i%2; j < n; j+=2) {
             aa = a(v2[i*(n+1)+j],nu,h,rr);
@@ -216,7 +216,7 @@ void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, doubl
 
     // UPDATING BLACK POINTS
     // interior
-    #pragma omp parallel for private(i,j) num_threads(ntr)
+    #pragma omp parallel for private(i,j)
     for (i = 1; i < n; i++) {
     	for (j = 1+i%2; j < n; j+=2) {
             aa = a(v2[i*(n+1)+j],nu,h,rr);
@@ -229,7 +229,7 @@ void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, doubl
 
 }
 
-void prolongation(double* up, double* u, int n, int ntr){
+void prolongation(double* up, double* u, int n){
     // up is the output, size 2n+1 x 2n+1, u is the input, size n+1 x n+1
     //#pragma omp parallel num_threads(ntr)
 {
@@ -269,7 +269,7 @@ void prolongation(double* up, double* u, int n, int ntr){
     up[(2*n)*(2*n+1) + 2*n] = u[n*(n+1) + n];
 }
 
-void restriction(double* u, double* up, int n, int ntr){
+void restriction(double* u, double* up, int n){
     // u is the output, size n/2+1 x n/2+1, up is the input, size n+1 x n+1
     //#pragma omp parallel num_threads(ntr)
 {
