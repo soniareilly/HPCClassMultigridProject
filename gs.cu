@@ -1,8 +1,8 @@
 #include <stdio.h>
 
-#define R((dt),(dx))              (0.5*(dt)/((dx)*(dx)))
-#define COEFF((v),(nu),(dx),(r))) ((r)*(0.5*(v)*(dt)+(nu)))
-#define CEIL(x,y)                 (((x) + (y) - 1)/(y))
+#define R(dt,dx)             (0.5*(dt)/((dx)*(dx)))
+#define COEFF(v, nu, dx, r)  ((r)*(0.5*(v)*(dt)+(nu)))
+#define CEIL(x,y)            (((x) + (y) - 1)/(y))
 
 __global__ void square_ker(double* a, long n)
 {
@@ -50,6 +50,7 @@ double compute_norm(double* a, int N)
     } while (nb > 1);
     double norm;
     cudaMemcpy(&norm, a, 1*sizeof(double), cudaMemcpyDeviceToHost);
+    return norm;
 }
 
 
@@ -60,16 +61,16 @@ __global__ void prolongation(double* up, double* u, int n)
     int ix = blockIdx.x*blockDim.x + threadIdx.x; int ix2 = 2*ix;
     int iy = blockIdx.y*blockDim.y + threadIdx.y; int iy2 = 2*iy;
     int nnew = 2*n + 1;
-    if ((ix2 <= nnew) || (iy2 <= nnew)) return; // Out of bounds
+    if ((ix2 >= nnew) || (iy2 >= nnew)) return; // Out of bounds
     up[ix2*nnew+iy2] = u[ix*(n+1)+iy];
     if (ix2 < nnew-1){
-        up[(ix2+1)*nnew+iy2] = 0.5*(u[ix*(n+1)+iy]+u[(ix+1)*(n+1)+iy]);
-        if (iy2 < nnew-1)){
+        up[(ix2+1)*nnew + iy2] = 0.5*( u[ix*(n+1) + iy] + u[(ix+1)*(n+1) + iy] );
+        if (iy2 < nnew-1){
             up[(ix2+1)*nnew+iy2+1] = 0.25*(u[ix*(n+1)+iy]+u[(ix+1)*(n+1)+iy]+u[ix*(n+1)+iy+1]+u[(ix+1)*(n+1)+iy+1]);
         }
     }
     if (iy2 < nnew-1){
-        up[ix2*nnew+iy2+1] = 0.5*(u[ix*(n+1)+iy]+u[ix(n+1)+iy+1]);
+        up[ix2*nnew+iy2+1] = 0.5*(u[ix*(n+1)+iy]+u[ix*(n+1)+iy+1]);
     }
 }
 
@@ -81,13 +82,13 @@ __global__ void restriction(double *u, double *up, int n)
     int iy = blockIdx.y*blockDim.y + threadIdx.y;
     int nnew = n/2 + 1;
     if ((ix < nnew) && (iy < nnew))
-        u[ix*nnew+iy] = up[(2*ix-1)*(n+1)+(2*iy-1)];
+        u[ix*nnew+iy] = up[(2*ix)*(n+1)+(2*iy)];
 }
 
-__global__ void rhs(double* rhs, double* u, 
-                    int N, 
-                    double* v1, double* v2, 
-                    double dt, double nu, double dx)
+__global__ void compute_rhs(double* rhs, double* u, 
+                            int N, 
+                            double* v1, double* v2, 
+                            double dt, double nu, double dx)
 {
     int n = N+1;
 
@@ -143,7 +144,7 @@ __global__ void rhs(double* rhs, double* u,
 
     if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
         double uij = uloc[threadIdx.x*blockDim.y + threadIdx.y];
-    r[i*n+j] = (1.0+4.0*r*nu)*uij - c*up - d*dn - a*lf - b*rt;
+    rhs[i*n+j] = (1.0+4.0*r*nu)*uij - c*up - d*dn - a*lf - b*rt;
 }
 
 __global__ void residual(double* r, double* u, double* rhs, 
