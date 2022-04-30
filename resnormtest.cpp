@@ -171,6 +171,42 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
 
 }
 
+void gauss_seidel2(double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h, int ntr) {
+
+    int i; int j;
+
+    double aa,bb,cc,dd,rr; // LHS coeffficients
+    rr = r(h,k);
+
+    // UPDATING RED POINTS
+    // here we're assuming top left is red
+    // interior
+    #pragma omp parallel for private(i,j) num_threads(ntr)
+    for (i = 1; i < n; i++) {
+    	for (j = 2-i%2; j < n; j+=2) {
+            aa = a(v2[i*(n+1)+j],nu,h,rr);
+            bb = b(v2[i*(n+1)+j],nu,h,rr);
+            cc = a(v1[i*(n+1)+j],nu,h,rr);
+            dd = b(v1[i*(n+1)+j],nu,h,rr);
+            u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - dd*u[(i+1)*(n+1)+j] - aa*u[i*(n+1)+j-1] - bb*u[i*(n+1)+j+1])/(1.0-4.0*rr*nu);
+		}
+    }
+
+    // UPDATING BLACK POINTS
+    // interior
+    #pragma omp parallel for private(i,j) num_threads(ntr)
+    for (i = 1; i < n; i++) {
+    	for (j = 1+i%2; j < n; j+=2) {
+            aa = a(v2[i*(n+1)+j],nu,h,rr);
+            bb = b(v2[i*(n+1)+j],nu,h,rr);
+            cc = a(v1[i*(n+1)+j],nu,h,rr);
+            dd = b(v1[i*(n+1)+j],nu,h,rr);
+            u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - dd*u[(i+1)*(n+1)+j] - aa*u[i*(n+1)+j-1] - bb*u[i*(n+1)+j+1])/(1.0-4.0*rr*nu);
+		}
+    }
+
+}
+
 int main(){
     int N = 5;
     int ntr = 16;
@@ -211,7 +247,7 @@ int main(){
     //#pragma omp barrier
     residual(res, u, rhs, N, v1, v2, dt, nu, dx, ntr);
     double res_norm = compute_norm(res, N, ntr);
-    gauss_seidel(u, rhs, N, v1, v2, dt, nu, dx, ntr);
+    gauss_seidel2(u, rhs, N, v1, v2, dt, nu, dx, ntr);
     printf("\nCPU (%d threads) time: %f s\n", ntr,omp_get_wtime()-tt);
 
     printf("\nu matrix\n");
