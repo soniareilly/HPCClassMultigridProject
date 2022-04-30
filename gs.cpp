@@ -91,17 +91,17 @@ double compute_norm(double *res, long n, int ntr) {
 {
     // #pragma omp for collapse(2) //ordered //reduction(+: tmp)
     for (long i = 1; i < n; i++){
-        #pragma omp task
+        //#pragma omp task
 {
         for (long j = 1; j < n; j++) {
             
-            #pragma omp atomic update
+            //#pragma omp atomic update
             tmp += res[i*(n+1)+j] * res[i*(n+1)+j];
             
         }
 }
     }
-    #pragma omp taskwait
+    //#pragma omp taskwait
 }
     return sqrt(tmp);
 }
@@ -120,7 +120,7 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
         //#pragma omp for collapse(2) nowait
         for (long i=1; i < n; i+=2) { // iterate through every odd row of red points (starting at 1)
                 #pragma omp task
-{printf("i:%d, thread id:%d\n",i,omp_get_thread_num());
+{//printf("i:%d, thread id:%d\n",i,omp_get_thread_num());
                 for (long j=1; j < n; j+=2) { // iterate through every other column of red points at each row
                     
                     aa = a(v2[i*(n+1)+j],nu,h,rr);
