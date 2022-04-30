@@ -1,17 +1,16 @@
 TAR1 = $(basename $(wildcard *.cpp))
 TAR2 = $(wildcard *.o)
 
-all: link1
+all: compile
 
-link1: gs.cpp link2
-	g++ -c $< -O0 -fopenmp
+compile: link1
+	g++ -o multigrid gs.o multigrid.o -O0 -fopenmp -std=c++11 -lgomp
 
-link2: multigrid.cpp compile
-	g++ -c $< -O0 -fopenmp
+link1: link2
+	g++ -fopenmp -std=c++11 -O0  -c -o gs.o gs.cpp
 
-compile: gs.o multigrid.o
-	g++ $^ -o multigrid -O0 -g -fopenmp
-# -fopenmp
+link2:
+	g++ -fopenmp -std=c++11 -O0  -c -o multigrid.o multigrid.cpp
 
 clean:
 	-$(RM) $(TAR1) $(TAR2) *~
