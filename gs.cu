@@ -229,8 +229,8 @@ __global__ void rotating_v(double* v1, double* v2, double kx, double ky, int n, 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
     if ((i < n+1) && (j < n+1)){
-        v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);
-        v2[i*(N+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);
+        v1[i*(n+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);
+        v2[i*(n+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);
     }
 }
 

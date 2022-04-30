@@ -11,6 +11,7 @@
 #include "gscu.h" 
 
 #define PI 3.1415926535897932
+#define CEIL(x,y) (((x) + (y) - 1)/(y))
 
 // inner loop of multigrid, computes one V or W-cycle and recurses
 void mg_inner(double** u, double** rhs, 
@@ -132,11 +133,12 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     // n is the dimension of u0, v1, v2, the finest n
 
     // declare towers (pointers to arrays of pointers to successively coarsening arrays)
-    double *utow[maxlvl]; 
-    double *v1tow[maxlvl]; 
-    double *v2tow[maxlvl]; 
-    double *rhstow[maxlvl];
-    
+    double *utow = (double*) malloc (sizeof(double*) * maxlvl); 
+    double *v1tow = (double*) malloc (sizeof(double*) * maxlvl); 
+    double *v2tow = (double*) malloc (sizeof(double*) * maxlvl); 
+    double *rhstow = (double*) malloc (sizeof(double*) * maxlvl); 
+    double *tmp;
+ /*   
     // initialize top (finest) levels of towers
     // utow[0] = u0; v1tow[0] = v1; v2tow[0] = v2; 
     cudaMalloc(&utow[0],   (n+1)*(n+1)*sizeof(double));
@@ -181,7 +183,7 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
 
     // update uT
     memcpy(uT, utow[0], (n+1)*(n+1)*sizeof(double));
-
+    
     free(tmp);
     // free each level of the towers
     for (int i = 0; i < maxlvl; ++i)
@@ -191,6 +193,11 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
         free(v1tow[i]);
         free(v2tow[i]);
     }
+    */
+   free(utow);
+   free(rhstow);
+   free(v1tow);
+   free(v2tow);
 }
 
 void Check_CUDA_Error(const char *message){
@@ -249,6 +256,8 @@ int main(){
     cudaMemcpy(uTcpu , uT, sizeof(double)*(N+1)*(N+1), cudaMemcpyDeviceToHost);
 
     // Print final uT to file
+    printf("%g\n",uTcpu[(N/2)*(N+1)+(N/2)]);
+    /*
     FILE *f = fopen("uTcuda.txt","w");
     for (i = 0; i < N+1; i++){
         for (j = 0; j < N+1; j++){
@@ -256,7 +265,7 @@ int main(){
         }
     }
     fclose(f);
-
+    */
     free(uTcpu);
     cudaFree(u0);
     cudaFree(uT);
