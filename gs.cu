@@ -36,7 +36,7 @@ __global__ void reduction_kernel(double* sum, const double* a, long N)
     if (threadIdx.x == 0) sum[blockIdx.x] = smem[threadIdx.x];
 }
 
-double compute_norm(double* a, int N)
+double compute_norm_cu(double* a, int N)
 {
     long n = (N+1)*(N+1);
     long nb = CEIL(n,1024); 
@@ -50,7 +50,7 @@ double compute_norm(double* a, int N)
     } while (nb > 1);
     double norm;
     cudaMemcpy(&norm, a, 1*sizeof(double), cudaMemcpyDeviceToHost);
-    return norm;
+    return sqrt(norm);
 }
 
 
@@ -145,6 +145,7 @@ __global__ void compute_rhs(double* rhs, double* u,
     if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
         double uij = uloc[threadIdx.x*blockDim.y + threadIdx.y];
     rhs[i*n+j] = (1.0+4.0*r*nu)*uij - c*up - d*dn - a*lf - b*rt;
+    }
 }
 
 __global__ void residual(double* res, double* u, double* rhs, 

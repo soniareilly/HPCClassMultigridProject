@@ -57,7 +57,7 @@ double compute_norm_cu(double* a, int N)
     } while (nb > 1);
     double norm;
     cudaMemcpy(&norm, a, 1*sizeof(double), cudaMemcpyDeviceToHost);
-    return norm;
+    return sqrt(norm);
 }
 
 double compute_norm(double *res, long n) 
@@ -114,6 +114,13 @@ int main()
             //rhs[i*(N+1)+j] = 0.0;
         }
     }
+    for (i = 0; i < N; ++i)
+    {
+        u[i] = 0.0;
+        u[i*n+N] = 0.0;
+        u[N*n+i+1] = 0.0;
+        u[i*n] = 0.0;
+    }
     cudaMemcpy(cuu , u, sizeof(double)*n*n, cudaMemcpyHostToDevice);
     cudaMemcpy(cuv1, v1, sizeof(double)*n*n, cudaMemcpyHostToDevice);
     cudaMemcpy(cuv2, v2, sizeof(double)*n*n, cudaMemcpyHostToDevice);
@@ -122,7 +129,7 @@ int main()
     double nm = compute_norm(u,N);
     dim3 threadsPerBlock(32,32);
     dim3 numBlocks(CEIL(n,threadsPerBlock.x), CEIL(n,threadsPerBlock.y));
-    double cunm = compute_norm(cuu,N);
+    double cunm = compute_norm_cu(cuu,N);
     //cudaMemcpy(v1, curhs, sizeof(double)*n*n, cudaMemcpyDeviceToHost);
 /*
     for (i = 0; i < N+1; ++i)
@@ -143,8 +150,8 @@ int main()
         printf("\n");
     }
 */
-    println("%g\n", nm);
-    println("%g\n", cunm);
+    printf("%g\n", nm);
+    printf("%g\n", cunm);
 
     free(u);
     free(v1);
