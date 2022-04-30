@@ -167,8 +167,8 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
         compute_rhs(rhstow[0], utow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
         // solve the linear system
         mg_outer(utow, v1tow, v2tow, rhstow, tmp, nu, maxlvl, n, dt, dx, tol, shape);
-        // print timestep number
-        // printf("Timestep number %i\n", iter);
+        // print every 100 timestep number
+        if (iter%100 == 0) printf("Timestep number %i\n", iter);
     }
 
     // update uT
@@ -226,7 +226,7 @@ int main(){
 
     // call timestepper
     double dt = dx/10;              // timestep dt depends on dx to satisfy CFL
-    double T  = 100*dt;             // end time of simulation
+    double T  = 1000*dt;             // end time of simulation
     double tol = 1e-6;              // relative tolerance for mg_outer convergence
     int shape = 1;                  // V-cycle or W-cycle (here, V-cycle)
 
@@ -241,10 +241,10 @@ int main(){
     int ntr = 4; // number of threads
     #pragma omp parallel num_threads(ntr) 
     {
-    #pragma omp single
-    {
-    timestepper(uTomp, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
-    }
+        #pragma omp single
+        {
+        timestepper(uTomp, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
+        }
     }
     printf("\nCPU with OMP (%d threads) time: %f s\n", ntr, omp_get_wtime()-tt);
     // compute error wrt the referenced solution
@@ -263,6 +263,15 @@ int main(){
     for (i = 0; i < N+1; i++){
         for (j = 0; j < N+1; j++){
             fprintf(f, "%d\t%d\t%f\n", i, j, uTref[i*(N+1)+j]);
+        }
+    }
+    fclose(f);
+
+    // Print final uTomp to file
+    f = fopen("uTomp.txt","w");
+    for (i = 0; i < N+1; i++){
+        for (j = 0; j < N+1; j++){
+            fprintf(f, "%d\t%d\t%f\n", i, j, uTomp[i*(N+1)+j]);
         }
     }
     fclose(f);

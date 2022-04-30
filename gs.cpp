@@ -42,7 +42,7 @@ void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double 
             cc = a(v1[i*(n+1)+j],nu,h,rr);
             dd = b(v1[i*(n+1)+j],nu,h,rr);
             rhs[i*(n+1)+j] = (1.0+4.0*rr*nu)*u[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)];
-            // printf("rhs:%.6f\n", rhs[i*(n+1)+j]);
+            
             
         }
 }
@@ -59,7 +59,7 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
 
     double aa,bb,cc,dd,rr; // LHS coeffficients
     rr = r(h,k);
-    // printf("num threads:%d\n",omp_get_num_threads());
+    
 
     // #pragma omp parallel num_threads(ntr)
 {
@@ -78,6 +78,8 @@ void residual(double *res, double *u, double *rhs, long n, double *v1, double *v
 }
     }
     #pragma omp taskwait
+}
+
 }
 
 
@@ -118,11 +120,10 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
         //#pragma omp for collapse(2) nowait
         for (long i=1; i < n; i+=2) { // iterate through every odd row of red points (starting at 1)
                 #pragma omp task
-{//printf("i:%d, thread id:%d\n",i,omp_get_thread_num());
+{
                 for (long j=1; j < n; j+=2) { // iterate through every other column of red points at each row
                     
                     aa = a(v2[i*(n+1)+j],nu,h,rr);
-                    // printf("a:%.6f\n",aa);
                     bb = b(v2[i*(n+1)+j],nu,h,rr);
                     cc = a(v1[i*(n+1)+j],nu,h,rr);
                     dd = b(v1[i*(n+1)+j],nu,h,rr);
@@ -183,9 +184,6 @@ void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double
         }
 }
         #pragma omp taskwait
-        // double* utmp = u;
-        // u = unew;
-        // unew = utmp;
 
 
 }
