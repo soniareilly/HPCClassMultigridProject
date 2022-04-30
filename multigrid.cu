@@ -256,15 +256,17 @@ int main(){
 
     // Print final uT to file
     printf("%g\n",uTcpu[(N/2)*(N+1)+(N/2)]);
-    /*
-    FILE *f = fopen("uTcuda.txt","w");
+    
+    //FILE *f = fopen("uTcuda.txt","w");
     for (i = 0; i < N+1; i++){
         for (j = 0; j < N+1; j++){
-            fprintf(f, "%d\t%d\t%f\n", i, j, uTcpu[i*(N+1)+j]);
+            //fprintf(f, "%d\t%d\t%f\n", i, j, uTcpu[i*(N+1)+j]);
+            printf("%.2g\t",uTcpu[i*(N+1)+j]);
         }
+        printf("\n");
     }
-    fclose(f);
-    */
+    //fclose(f);
+    
     free(uTcpu);
     cudaFree(u0);
     cudaFree(uT);
