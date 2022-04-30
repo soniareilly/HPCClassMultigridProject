@@ -4,6 +4,12 @@
 #define COEFF(v, nu, dx, r)  ((r)*(0.5*(v)*(dx)+(nu)))
 #define CEIL(x,y)            (((x) + (y) - 1)/(y))
 
+__global__ void vecadd(double* a, double* b, double* c, long n)
+{
+    long i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < n)    a[i] = b[i]+c[i];
+}
+
 __global__ void square_ker(double* a, long n)
 {
     long i = blockDim.x * blockIdx.x + threadIdx.x;

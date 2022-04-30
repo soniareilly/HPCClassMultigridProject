@@ -1,5 +1,6 @@
 // function headers for CUDA version of multigrid
 
+__global__ void vecadd(double* a, double* b, double* c, long n);
 __global__ void square_ker(double* a, long n);
 __global__ void gpucopy(double* dest, const double* source, long n);
 __global__ void reduction_kernel(double* sum, const double* a, long N);

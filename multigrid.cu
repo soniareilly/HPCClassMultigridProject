@@ -13,12 +13,6 @@
 #define PI 3.1415926535897932
 #define CEIL(x,y) (((x) + (y) - 1)/(y))
 
-__global__ void vecadd(const double* a, const double* b, double* c, long n)
-{
-    long i = blockDim.x * blockIdx.x + threadIdx.x;
-    if (i < n)    a[i] = b[i]+c[i];
-}
-
 // inner loop of multigrid, computes one V or W-cycle and recurses
 void mg_inner(double** u, double** rhs, 
               double** v1, double** v2,
