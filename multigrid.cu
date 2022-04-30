@@ -133,14 +133,24 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     // n is the dimension of u0, v1, v2, the finest n
 
     // declare towers (pointers to arrays of pointers to successively coarsening arrays)
-    double *utow = (double*) malloc (sizeof(double*) * maxlvl); 
-    double *v1tow = (double*) malloc (sizeof(double*) * maxlvl); 
-    double *v2tow = (double*) malloc (sizeof(double*) * maxlvl); 
-    double *rhstow = (double*) malloc (sizeof(double*) * maxlvl); 
+    double **utow = (double**) malloc (sizeof(double*) * maxlvl); 
+    double **v1tow = (double**) malloc (sizeof(double*) * maxlvl); 
+    double **v2tow = (double**) malloc (sizeof(double*) * maxlvl); 
+    double **rhstow = (double**) malloc (sizeof(double*) * maxlvl); 
     double *tmp;
- /*   
+  
     // initialize top (finest) levels of towers
     // utow[0] = u0; v1tow[0] = v1; v2tow[0] = v2; 
+/*    double *upt, *v1pt, *v2pt, *rhspt;
+    cudaMalloc(&upt,   (n+1)*(n+1)*sizeof(double));
+    cudaMalloc(&v1pt,  (n+1)*(n+1)*sizeof(double));
+    cudaMalloc(&v2pt,  (n+1)*(n+1)*sizeof(double));
+    cudaMalloc(&rhspt, (n+1)*(n+1)*sizeof(double));
+    utow[0] = upt;
+    v1tow[0] = v1pt;
+    v2tow[0] = v2pt;
+    rhstow[0] = rhspt;
+*/
     cudaMalloc(&utow[0],   (n+1)*(n+1)*sizeof(double));
     cudaMalloc(&v1tow[0],  (n+1)*(n+1)*sizeof(double));
     cudaMalloc(&v2tow[0],  (n+1)*(n+1)*sizeof(double));
@@ -182,22 +192,22 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     }
 
     // update uT
-    memcpy(uT, utow[0], (n+1)*(n+1)*sizeof(double));
+    gpucopy<<<CEIL((n+1)*(n+1),1024),1024>>>(uT, utow[0], (n+1)*(n+1));
     
-    free(tmp);
+    cudaFree(tmp);
     // free each level of the towers
     for (int i = 0; i < maxlvl; ++i)
     {
-        free(utow[i]);
-        free(rhstow[i]);
-        free(v1tow[i]);
-        free(v2tow[i]);
+        cudaFree(utow[i]);
+        cudaFree(rhstow[i]);
+        cudaFree(v1tow[i]);
+        cudaFree(v2tow[i]);
     }
-    */
-   free(utow);
-   free(rhstow);
-   free(v1tow);
-   free(v2tow);
+    
+    free(utow);
+    free(rhstow);
+    free(v1tow);
+    free(v2tow);
 }
 
 void Check_CUDA_Error(const char *message){
