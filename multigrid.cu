@@ -183,6 +183,14 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     }
 }
 
+void Check_CUDA_Error(const char *message){
+  cudaError_t error = cudaGetLastError();
+  if(error!=cudaSuccess) {
+    fprintf(stderr,"ERROR: %s: %s\n", message, cudaGetErrorString(error) );
+    exit(-1);
+  }
+}
+
 int main(){
     // define N and calculate maxlvl
     int N = 256;                    // Finest grid size. MUST BE A POWER OF 2
