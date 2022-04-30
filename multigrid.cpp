@@ -18,7 +18,7 @@ void mg_inner(double** u, double** rhs,
               double** v1, double** v2,
               double* tmp, double dx, int n, 
               int lvl, int maxlvl, 
-              int shape, double dt, double nu)
+              int shape, double dt, double nu, int ntr)
 {
 /*
 u[maxlvl][(n+1)*(n+1)]   - tower of arrays of u and its residual at successively 
@@ -35,6 +35,7 @@ maxlvl                   - Maximum multigrid recursion depth
 shape                    - Shape of multigrid cycles (shape=1 --> V-cycle, 2 --> W-cycle)
 dt                       - timestep
 nu                       - diffusion parameter
+ntr                      - number of threads
 */
 
     int i, iter, sh;
@@ -58,9 +59,9 @@ nu                       - diffusion parameter
             double res_exact = 1.0; i = 0;
             // maxiter and tolerance are hard-coded for now
             while (i < 1000 && res_exact > 1e-5){
-                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
-                residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx);
-                res_exact = compute_norm(tmp, n);
+                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx, ntr);
+                residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx, ntr);
+                res_exact = compute_norm(tmp, n, ntr);
                 i++;
             }
         // at any other level, smooth, restrict, recurse, prolong, update
@@ -68,23 +69,23 @@ nu                       - diffusion parameter
             // smoothing
             for (iter = 0; iter < NITER; ++iter)
             {
-                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
+                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx, ntr);
             }
-            residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx);
+            residual(tmp, ui, rhsi, n, v1i, v2i, dt, nu, dx, ntr);
             // restrict residual to coarser level
-            restriction(rhsi1, tmp, n);
+            restriction(rhsi1, tmp, n, ntr);
             // set u[lvl+1] to 0
             for (i = 0; i < (nnew+1)*(nnew+1); ++i) ui1[i] = 0;
             // Recurse at coarser level
-            mg_inner(u, rhs, v1, v2, tmp, dx2, nnew, lvl+1, maxlvl, shape, dt, nu);
+            mg_inner(u, rhs, v1, v2, tmp, dx2, nnew, lvl+1, maxlvl, shape, dt, nu, ntr);
             // Prolong solution back to fine level
-            prolongation(tmp, ui1, nnew);
+            prolongation(tmp, ui1, nnew, ntr);
             // update u
             for (i = 0; i < (n+1)*(n+1); ++i) ui[i] += tmp[i];
             // smoothing
             for (iter = 0; iter < NITER; ++iter)
             {
-                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx);
+                gauss_seidel(ui, rhsi, n, v1i, v2i, dt, nu, dx, ntr);
             }
         }
     }
@@ -96,21 +97,21 @@ const long MAX_CYCLE = 50;      // maximum number of V or W-cycles
 // outer loop of multigrid, repeats V or W-cycle as many times as necessary for convergence
 void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow, 
               double* tmp, double nu, int maxlvl, int n, 
-              double dt, double dx, double tol, int shape) {
+              double dt, double dx, double tol, int shape, int ntr) {
 
     double res_norm, res0_norm;
     int iter;
     // calculate initial residual
-    residual(tmp, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
-    res_norm = res0_norm = compute_norm(tmp,n);
+    residual(tmp, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx, ntr);
+    res_norm = res0_norm = compute_norm(tmp, n, ntr);
 
     // perform V or W-cycles until convergence
     for (iter = 0; iter < MAX_CYCLE && res_norm/res0_norm > tol; iter++) { 
         // V or W-cycle
-        mg_inner(utow, rhstow, v1tow, v2tow, tmp, dx, n, 0, maxlvl, shape, dt, nu);
+        mg_inner(utow, rhstow, v1tow, v2tow, tmp, dx, n, 0, maxlvl, shape, dt, nu, ntr);
         // compute new residual
-        residual(tmp, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
-        res_norm = compute_norm(tmp,n);
+        residual(tmp, utow[0], rhstow[0], n, v1tow[0], v2tow[0], dt, nu, dx, ntr);
+        res_norm = compute_norm(tmp,n, ntr);
     }
 
     // test for non-convergence and print warning
@@ -123,8 +124,9 @@ void mg_outer(double** utow, double** v1tow, double** v2tow, double** rhstow,
 // Outputs the solution uT after performing the timestepping starting with u0
 void timestepper(double* uT, double* u0, double* v1, double* v2,
                 double nu, int maxlvl, int n, double dt, double T, 
-                double dx, double tol, int shape){
+                double dx, double tol, int shape, int ntr){
     // n is the dimension of u0, v1, v2, the finest n
+    // ntr is the number of threads for omp
 
     // declare towers (pointers to arrays of pointers to successively coarsening arrays)
     double *utow[maxlvl]; 
@@ -151,9 +153,9 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
         utow[i] = (double*) malloc(ni*ni* sizeof(double));
         // vtow has the progressive restrictions
         v1tow[i] = (double*) malloc(ni*ni* sizeof(double));
-        restriction(v1tow[i],v1tow[i-1],ni-1);
+        restriction(v1tow[i],v1tow[i-1],ni-1,ntr);
         v2tow[i] = (double*) malloc(ni*ni* sizeof(double));
-        restriction(v2tow[i],v2tow[i-1],ni-1);
+        restriction(v2tow[i],v2tow[i-1],ni-1,ntr);
         // lower levels of rhs are just 0s
         rhstow[i] = (double*) calloc(ni*ni, sizeof(double));
     }
@@ -163,9 +165,9 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
     // iterate in time
     for (int iter = 0; iter < (int) (T/dt); iter++){
         // update rhs of the linear system
-        compute_rhs(rhstow[0], utow[0], n, v1tow[0], v2tow[0], dt, nu, dx);
+        compute_rhs(rhstow[0], utow[0], n, v1tow[0], v2tow[0], dt, nu, dx, ntr);
         // solve the linear system
-        mg_outer(utow, v1tow, v2tow, rhstow, tmp, nu, maxlvl, n, dt, dx, tol, shape);
+        mg_outer(utow, v1tow, v2tow, rhstow, tmp, nu, maxlvl, n, dt, dx, tol, shape, ntr);
         // print timestep number
         // printf("Timestep number %i\n", iter);
     }
@@ -230,20 +232,21 @@ int main(){
     int shape = 1;                  // V-cycle or W-cycle (here, V-cycle)
 
     // Referenced computation on CPU with 1 thread
+    int ntr = 1;
     double tt = omp_get_wtime();
     // #pragma omp parallel num_threads(ntr) {
-    timestepper(uTref, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
+    timestepper(uTref, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape, ntr);
     // }
     printf("\nCPU (1 thread for reference) time: %f s\n", omp_get_wtime()-tt);
 
     // Computation on CPU with 16 threads (OMP)
     double error = 0;
     tt = omp_get_wtime();
-    int ntr = 16; // number of threads
-    #pragma omp parallel num_threads(ntr) 
-    {
-    timestepper(uTomp, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
-    }
+    ntr = 16; // number of threads
+    // #pragma omp parallel num_threads(ntr) 
+    // {
+    timestepper(uTomp, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape, ntr);
+    // }
     printf("\nCPU with OMP (%d threads) time: %f s\n", ntr, omp_get_wtime()-tt);
     // compute error wrt the referenced solution
      for (i = 0; i < N+1; i++){
