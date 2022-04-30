@@ -97,6 +97,80 @@ double compute_norm(double *res, long n, int ntr) {
     return sqrt(tmp);
 }
 
+void gauss_seidel(double *u, double *rhs, long n, double *v1, double *v2, double k, double nu, double h, int ntr) {
+    // k: time step (dt)
+    // h: spatial discretization step (dx=dy)
+    // r: dt/(2*dx*dx)
+
+    double aa,bb,cc,dd,rr; // LHS coeffficients
+    rr = r(h,k);
+
+    #pragma omp parallel num_threads(ntr)
+{ 
+        // GS iteration to update red points
+        #pragma omp for collapse(2) nowait
+        for (long i=1; i < n; i+=2) { // iterate through every odd row of red points (starting at 1)
+                for (long j=1; j < n; j+=2) { // iterate through every other column of red points at each row
+                    
+                    aa = a(v2[i*(n+1)+j],nu,h,rr);
+                    // printf("a:%.6f\n",aa);
+                    bb = b(v2[i*(n+1)+j],nu,h,rr);
+                    cc = a(v1[i*(n+1)+j],nu,h,rr);
+                    dd = b(v1[i*(n+1)+j],nu,h,rr);
+                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
+                    
+                }
+                
+        }
+
+        #pragma omp for collapse(2)
+        for (long i=2; i < n; i+=2) { // iterate through every even row of red points (starting at 2)
+                for (long j=2; j < n; j+=2) {
+                    
+                    aa = a(v2[i*(n+1)+j],nu,h,rr);
+                    bb = b(v2[i*(n+1)+j],nu,h,rr);
+                    cc = a(v1[i*(n+1)+j],nu,h,rr);
+                    dd = b(v1[i*(n+1)+j],nu,h,rr);
+                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
+                    
+                }
+                
+        }
+	
+        // GS iteration to update black points
+        #pragma omp for collapse(2) nowait
+        for (long i=1; i < n; i+=2) { // iterate through every odd row of black points (starting at 2)
+            for (long j=2; j < n; j+=2) { // iterate through every other column of black points at each row
+                    
+                    aa = a(v2[i*(n+1)+j],nu,h,rr);
+                    bb = b(v2[i*(n+1)+j],nu,h,rr);
+                    cc = a(v1[i*(n+1)+j],nu,h,rr);
+                    dd = b(v1[i*(n+1)+j],nu,h,rr);
+                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
+                    
+                }
+        }
+
+        #pragma omp for collapse(2)
+        for (long i=2; i < n; i+=2) { // iterate through every even row of black points (starting at 1)
+                for (long j=1; j < n; j+=2) {
+                    
+                    aa = a(v2[i*(n+1)+j],nu,h,rr);
+                    bb = b(v2[i*(n+1)+j],nu,h,rr);
+                    cc = a(v1[i*(n+1)+j],nu,h,rr);
+                    dd = b(v1[i*(n+1)+j],nu,h,rr);
+                    u[i*(n+1)+j] = (rhs[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)])/(1.0-4.0*rr*nu);
+                    
+                }
+        }
+}
+        // double* utmp = u;
+        // u = unew;
+        // unew = utmp;
+
+
+}
+
 int main(){
     int N = 5;
     int ntr = 16;
@@ -137,6 +211,7 @@ int main(){
     //#pragma omp barrier
     residual(res, u, rhs, N, v1, v2, dt, nu, dx, ntr);
     double res_norm = compute_norm(res, N, ntr);
+    gauss_seidel(u, rhs, N, v1, v2, dt, nu, dx, ntr);
     printf("\nCPU (%d threads) time: %f s\n", ntr,omp_get_wtime()-tt);
 
     printf("\nu matrix\n");
