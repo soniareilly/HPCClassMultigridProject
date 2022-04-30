@@ -17,84 +17,60 @@ inline double b(double v, double nu, double h, double r) {
     return r*(v*h/2.0+nu);
 }
 
-__global__ void compute_rhs_cu(double* rhs, double* u, 
-                            int N, 
-                            double* v1, double* v2, 
-                            double dt, double nu, double dx)
+__global__ void square_ker(double* a, long n)
 {
-    int n = N+1;
-
-    __shared__ double uloc[1024];
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int j = blockIdx.y * blockDim.y + threadIdx.y;
-    if ((i < n) && (j < n)) {
-    uloc[threadIdx.x*blockDim.y + threadIdx.y] = u[i*n+j];
-    } else {
-    uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
-    }
-
-    __syncthreads();
-
-    double v1i = v1[i*n+j];
-    double v2i = v2[i*n+j];
-    double r = R(dt, dx);
-    double a = COEFF(-v2i,nu,dx,r);
-    double b = COEFF( v2i,nu,dx,r);
-    double c = COEFF(-v1i,nu,dx,r);
-    double d = COEFF( v1i,nu,dx,r);
-
-    double up = 0.0;
-    double dn = 0.0;
-    double lf = 0.0;
-    double rt = 0.0;
-
-    if (threadIdx.x > 0) {
-    up = uloc[(threadIdx.x-1)*blockDim.y + threadIdx.y];
-    } else if (i > 0) {
-    up = u[(i-1)*n+j];
-    }
-
-    if (threadIdx.y > 0) {
-    lf = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
-    } else if (j > 0) {
-    lf = u[i*n+j-1];
-    }
-
-    if (threadIdx.x < blockDim.x-1) {
-    dn = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
-    } else if (i < n-1) {
-    dn = u[(i+1)*n+j];
-    }
-
-    if (threadIdx.y < blockDim.y-1) {
-    rt = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
-    } else if (j < n-1) {
-    rt = u[i*n+j+1];
-    }
-
-    __syncthreads();
-
-    if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
-        double uij = uloc[threadIdx.x*blockDim.y + threadIdx.y];
-    rhs[i*n+j] = (1.0+4.0*r*nu)*uij - c*up - d*dn - a*lf - b*rt;
+    long i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < n)    a[i] *= a[i];
 }
 
-void compute_rhs(double *rhs, double *u, long n, double *v1, double *v2, double k, double nu, double h)
+__global__ void reduction_kernel(double* sum, const double* a, long N)
 {
-    // k: time step (dt)
-    // h: spatial discretization step (dx=dy)
-    // r: dt/(2*dx*dx)
-    double aa,bb,cc,dd,rr; // LHS coeffficients
-    rr = r(h,k);
-    for (long i = 1; i < n; i++){
-        for (long j = 1; j < n; j++) {
-            aa = a(v2[i*(n+1)+j],nu,h,rr);
-            bb = b(v2[i*(n+1)+j],nu,h,rr);
-            cc = a(v1[i*(n+1)+j],nu,h,rr);
-            dd = b(v1[i*(n+1)+j],nu,h,rr);
-            rhs[i*(n+1)+j] = (1.0+4.0*rr*nu)*u[i*(n+1)+j] - cc*u[(i-1)*(n+1)+j] - aa*u[i*(n+1)+(j-1)] - dd*u[(i+1)*(n+1)+j] - bb*u[i*(n+1)+(j+1)];
+    // Courtesy of B. Peherstorfer
+    __shared__ double smem[1024];
+    long idx = blockDim.x * blockIdx.x + threadIdx.x;
+    // each thread reads data from global into shared memory
+    if (idx < N) smem[threadIdx.x] = a[idx];
+    else smem[threadIdx.x] = 0;
+
+    __syncthreads();
+
+    for (unsigned int s = blockDim.x/2; s>0; s>>=1) {
+        if (threadIdx.x < s)
+            smem[threadIdx.x] += smem[threadIdx.x+s];
+        __syncthreads();
+    }
+    // write to global memory
+    if (threadIdx.x == 0) sum[blockIdx.x] = smem[threadIdx.x];
+}
+
+double compute_norm(double* a, int N)
+{
+    long n = (N+1)*(N+1);
+    long nb = CEIL(n,1024); 
+    square_ker<<<nb,1024>>>(a,n);
+    long nt = n; // num threads
+    do
+    {
+        nb = CEIL(nt,1024); // num blocks
+        reduction_kernel<<<nb,1024>>>(a,a,nt);
+        nt = nb;  // num threads for next iteration is num blocks for this one
+    } while (nb > 1);
+    double norm;
+    cudaMemcpy(&norm, a, 1*sizeof(double), cudaMemcpyDeviceToHost);
+    return norm;
+}
+
+double compute_norm(double *res, long n) 
+{
+    double tmp = 0.0;
+    for (long i = 1; i < n; i++)
+    {
+        for (long j = 1; j < n; j++) 
+        {
+            tmp += res[i*(n+1)+j] * res[i*(n+1)+j]; 
         }
     }
+    return sqrt(tmp);
 }
 
 int main()
