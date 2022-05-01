@@ -6,12 +6,14 @@ all: compile cuda timer
 
 compile: link1
 	g++ -o multigrid gs.o multigrid.o -O0 -fopenmp -std=c++11 -lgomp
+	g++ -o multigrid_strongsc gs.o multigrid_strongsc.o -O0 -fopenmp -std=c++11 -lgomp
 
 link1: link2
 	g++ -fopenmp -std=c++11 -O0  -c -o gs.o gs.cpp
 
 link2:
 	g++ -fopenmp -std=c++11 -O0  -c -o multigrid.o multigrid.cpp
+	g++ -fopenmp -std=c++11 -O0  -c -o multigrid_strongsc.o multigrid_strongsc.cpp
 
 cuda: cuda1
 	nvcc -o multigrid_cu -O0 gscu.o multigrid_cu.o
