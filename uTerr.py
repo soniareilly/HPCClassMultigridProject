@@ -1,5 +1,4 @@
-# Plotting code for the output of multigrid
-# Creates a pcolor plot of the solution on the square domain
+# Checks the error between the CUDA output and the serial output
 
 # (C) Tanya Wang, Sonia Reilly, Nolan Reilly, May 2022
 
