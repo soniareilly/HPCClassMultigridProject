@@ -168,7 +168,7 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
         // solve the linear system
         mg_outer(utow, v1tow, v2tow, rhstow, tmp, nu, maxlvl, n, dt, dx, tol, shape);
         // print every 100 timestep number
-        if (iter%100 == 0) printf("Timestep number %i\n", iter);
+        //if (iter%100 == 0) printf("Timestep number %i\n", iter);
     }
 
     // update uT
@@ -186,8 +186,10 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
 }
 
 int main(){
+
+for (int N = 32; N <= 4096; N<<=1){
     // define N and calculate maxlvl
-    int N = 256;                    // Finest grid size. MUST BE A POWER OF 2
+    //int N = 256;                    // Finest grid size. MUST BE A POWER OF 2
     int maxlvl = int(log2(N))-4;    // Levels of multigrid. n = 16 is solved exactly
     double dx = 1.0/N;
     
@@ -234,19 +236,19 @@ int main(){
 
     // call timestepper
     double dt = dx/10;              // timestep dt depends on dx to satisfy CFL
-    double T  = 100*dt;             // end time of simulation
+    double T  = 10*dt;             // end time of simulation
     double tol = 1e-6;              // relative tolerance for mg_outer convergence
     int shape = 1;                  // V-cycle or W-cycle (here, V-cycle)
 
     // Referenced computation on CPU with 1 thread
     double tt = omp_get_wtime();
     timestepper(uTref, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
-    printf("\nCPU (1 thread for reference) time: %f s\n", omp_get_wtime()-tt);
+    printf("\nCPU (1 thread for reference) time, N = %i: %f s\n", N, omp_get_wtime()-tt);
 
     // Computation on CPU with 16 threads (OMP)
     double error = 0;
     tt = omp_get_wtime();
-    int ntr = 4; // number of threads
+    int ntr = 8; // number of threads
     #pragma omp parallel num_threads(ntr) 
     {
         #pragma omp single
@@ -254,18 +256,20 @@ int main(){
         timestepper(uTomp, u0, v1, v2, nu, maxlvl, N, dt, T, dx, tol, shape);
         }
     }
-    printf("\nCPU with OMP (%d threads) time: %f s\n", ntr, omp_get_wtime()-tt);
-    // compute error wrt the referenced solution
+    printf("\nCPU with OMP (%d threads) time, N = %i: %f s\n", ntr, N, omp_get_wtime()-tt);
+    /*// compute error wrt the referenced solution
      for (i = 0; i < N+1; i++){
         for (j = 0; j < N+1; j++){
             error += fabs(uTomp[i*(N+1)+j]-uTref[i*(N+1)+j]);
         }
     }
     printf("Error (compared to the referenced solution) = %10e\n", error);
+    */
 
     // Computation on GPU with kernel functions
     // use u0cuda
 
+    /*
     // Print final uT to file
     FILE *f = fopen("uT.txt","w");
     for (i = 0; i < N+1; i++){
@@ -283,6 +287,7 @@ int main(){
         }
     }
     fclose(f);
+    */
 
     free(uTref);
     free(uTomp);
@@ -290,4 +295,5 @@ int main(){
     free(u0);
     free(v1);
     free(v2);
+}
 }
