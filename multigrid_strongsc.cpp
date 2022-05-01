@@ -168,7 +168,7 @@ void timestepper(double* uT, double* u0, double* v1, double* v2,
         // solve the linear system
         mg_outer(utow, v1tow, v2tow, rhstow, tmp, nu, maxlvl, n, dt, dx, tol, shape);
         // print every 10 timestep number
-        if (iter%10 == 0) printf("Timestep number %i\n", iter);
+        //if (iter%10 == 0) printf("Timestep number %i\n", iter);
     }
 
     // update uT
