@@ -221,12 +221,20 @@ int main(){
             v2[i*(N+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);
         }
     }
+    // set the boundary of u0 to 0
+    for (i = 0; i < N; ++i)
+    {
+        u0[i] = 0.0;
+        u0[i*(N+1)+N] = 0.0;
+        u0[N*(N+1)+i+1] = 0.0;
+        u0[i*(N+1)] = 0.0;
+    }
     // initialize diffusion parameter nu
     double nu = -4*1e-4;            // must be negative because of how we write the equation
 
     // call timestepper
     double dt = dx/10;              // timestep dt depends on dx to satisfy CFL
-    double T  = 1000*dt;             // end time of simulation
+    double T  = 100*dt;             // end time of simulation
     double tol = 1e-6;              // relative tolerance for mg_outer convergence
     int shape = 1;                  // V-cycle or W-cycle (here, V-cycle)
 
