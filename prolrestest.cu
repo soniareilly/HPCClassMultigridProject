@@ -17,60 +17,91 @@ inline double b(double v, double nu, double h, double r) {
     return r*(v*h/2.0+nu);
 }
 
-__global__ void square_ker(double* a, long n)
+__global__ void gs_ker(double* u, double* rhs, 
+                       long N, 
+                       double* v1, double* v2, 
+                       double dt, double nu, double dx,
+                       int rb)
 {
-    long i = blockDim.x * blockIdx.x + threadIdx.x;
-    if (i < n)    a[i] *= a[i];
-}
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
 
-__global__ void reduction_kernel(double* sum, const double* a, long N)
-{
-    // Courtesy of B. Peherstorfer
-    __shared__ double smem[1024];
-    long idx = blockDim.x * blockIdx.x + threadIdx.x;
-    // each thread reads data from global into shared memory
-    if (idx < N) smem[threadIdx.x] = a[idx];
-    else smem[threadIdx.x] = 0;
+    // NOTE!! n = N+1
+    long n = N+1;
+
+    double v1i = v1[i*n+j];
+    double v2i = v2[i*n+j];
+    double r = R(dt, dx);
+    double a = COEFF(-v2i,nu,dx,r);
+    double b = COEFF( v2i,nu,dx,r);
+    double c = COEFF(-v1i,nu,dx,r);
+    double d = COEFF( v1i,nu,dx,r);
+
+    double up = 0.0;
+    double dn = 0.0;
+    double lf = 0.0;
+    double rt = 0.0;
+
+    // copy a chunk into shared memory
+    __shared__ double uloc[1024];
+    if ((i < n) && (j < n)) {
+    uloc[threadIdx.x*blockDim.y + threadIdx.y] = u[i*n+j];
+    } else {
+    uloc[threadIdx.x*blockDim.y + threadIdx.y] = 0.0;
+    }
 
     __syncthreads();
 
-    for (unsigned int s = blockDim.x/2; s>0; s>>=1) {
-        if (threadIdx.x < s)
-            smem[threadIdx.x] += smem[threadIdx.x+s];
-        __syncthreads();
-    }
-    // write to global memory
-    if (threadIdx.x == 0) sum[blockIdx.x] = smem[threadIdx.x];
-}
+    double unew = uloc[threadIdx.x*blockDim.y + threadIdx.y];
+    if ((i+j)%2 == rb){
+        if (threadIdx.x > 0) {
+        up = uloc[(threadIdx.x-1)*blockDim.y + threadIdx.y];
+        } else if (i > 0) {
+        up = u[(i-1)*n+j];
+        }
 
-double compute_norm_cu(double* a, int N)
-{
-    long n = (N+1)*(N+1);
-    long nb = CEIL(n,1024); 
-    square_ker<<<nb,1024>>>(a,n);
-    long nt = n; // num threads
-    do
-    {
-        nb = CEIL(nt,1024); // num blocks
-        reduction_kernel<<<nb,1024>>>(a,a,nt);
-        nt = nb;  // num threads for next iteration is num blocks for this one
-    } while (nb > 1);
-    double norm;
-    cudaMemcpy(&norm, a, 1*sizeof(double), cudaMemcpyDeviceToHost);
-    return sqrt(norm);
-}
+        if (threadIdx.y > 0) {
+        lf = uloc[threadIdx.x*blockDim.y + threadIdx.y-1];
+        } else if (j > 0) {
+        lf = u[i*n+j-1];
+        }
 
-double compute_norm(double *res, long n) 
-{
-    double tmp = 0.0;
-    for (long i = 1; i < n; i++)
-    {
-        for (long j = 1; j < n; j++) 
-        {
-            tmp += res[i*(n+1)+j] * res[i*(n+1)+j]; 
+        if (threadIdx.x < blockDim.x-1) {
+        dn = uloc[(threadIdx.x+1)*blockDim.y + threadIdx.y];
+        } else if (i < n-1) {
+        dn = u[(i+1)*n+j];
+        }
+
+        if (threadIdx.y < blockDim.y-1) {
+        rt = uloc[threadIdx.x*blockDim.y + threadIdx.y+1];
+        } else if (j < n-1) {
+        rt = u[i*n+j+1];
+        }
+
+        if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1)) {
+        unew = (rhs[i*n+j] - c*up - d*dn - a*lf - b*rt)/(1.0-4.0*r*nu);
         }
     }
-    return sqrt(tmp);
+
+    __syncthreads();
+
+    if ((i > 0) && (i < n-1) && (j > 0) && (j < n-1))    u[i*n+j] = unew;
+}
+
+// Red-Black Gauss-Seidel
+void gauss_seidel(double* u, double* rhs, 
+                  long N, 
+                  double* v1, double* v2, 
+                  double dt, double nu, double dx)
+{
+    // calling kernel with N instead of N+1, since bottom & right borders are all 0's
+    // allows u to fit in fewer blocks, since N is a power of 2
+    dim3 threadsPerBlock(32,32);
+    dim3 numBlocks(CEIL(N,threadsPerBlock.x), CEIL(N,threadsPerBlock.y));
+    // red points
+    gs_ker<<<numBlocks, threadsPerBlock>>>(u,rhs,N,v1,v2,dt,nu,dx,0);
+    // black points
+    gs_ker<<<numBlocks, threadsPerBlock>>>(u,rhs,N,v1,v2,dt,nu,dx,1);
 }
 
 // Kernel to initialize u0 as a Gaussian
@@ -87,7 +118,7 @@ __global__ void gaussian_u0(double* u0, double x0, double y0, double sigma, int 
 
 int main()
 {
-    int N = 8;
+    int N = 2048;
     int n = N+1;
     double dx = 1.0/n;
     double dt = dx/10.0;
@@ -123,7 +154,7 @@ int main()
             v1[i*(N+1)+j] = -ky*sin(kx*i*dx)*cos(ky*j*dx);
             v2[i*(N+1)+j] = kx*cos(kx*i*dx)*sin(ky*j*dx);
 
-            //rhs[i*(N+1)+j] = 0.0;
+            rhs[i*(N+1)+j] = 0.0;
         }
     }
     for (i = 0; i < N; ++i)
@@ -136,35 +167,32 @@ int main()
     cudaMemcpy(cuu , u, sizeof(double)*n*n, cudaMemcpyHostToDevice);
     cudaMemcpy(cuv1, v1, sizeof(double)*n*n, cudaMemcpyHostToDevice);
     cudaMemcpy(cuv2, v2, sizeof(double)*n*n, cudaMemcpyHostToDevice);
-    //cudaMemcpy(curhs, rhs, sizeof(double)*n*n, cudaMemcpyHostToDevice);
+    cudaMemcpy(curhs, rhs, sizeof(double)*n*n, cudaMemcpyHostToDevice);
 
-    double nm = compute_norm(u,N);
     dim3 threadsPerBlock(32,32);
     dim3 numBlocks(CEIL(n,threadsPerBlock.x), CEIL(n,threadsPerBlock.y));
-    double cunm = compute_norm_cu(cuu,N);
-    //cudaMemcpy(v1, curhs, sizeof(double)*n*n, cudaMemcpyDeviceToHost);
-/*
-    for (i = 0; i < N+1; ++i)
-    {
-        for (j = 0; j < N+1; ++j)
-        {
-            printf("%.4g  ",rhs[i*n+j]);
-        }
-        printf("\n");
-    }
-    printf("\n");
-    for (i = 0; i < N+1; ++i)
-    {
-        for (j = 0; j < N+1; ++j)
-        {
-            printf("%.4g  ",v1[i*n+j]);
-        }
-        printf("\n");
-    }
-*/
-    printf("%g\n", nm);
-    printf("%g\n", cunm);
 
+
+
+    float ms;
+    cudaEvent_t startEvent, stopEvent;
+    cudaEventCreate(&startEvent);
+    cudaEventCreate(&stopEvent);
+    int ntrials = 500;
+    cudaEventRecord(startEvent,0);
+    for (i = 0; i < ntrials; ++i)
+    {
+        gauss_seidel(cuu, curhs, n, cuv1, cuv2, dt, nu, dx);
+    }
+    cudaEventRecord(stopEvent,0);
+    cudaEventSynchronize(stopEvent);
+    cudaEventElapsedTime(&ms, startEvent, stopEvent);
+
+    int ops = 31*N*N*ntrials;
+    printf("Flops: %f\n", 1000*ops/ms);
+
+    cudaEventDestroy(startEvent);
+    cudaEventDestroy(stopEvent);
     free(u);
     free(v1);
     free(v2);
