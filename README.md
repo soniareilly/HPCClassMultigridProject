@@ -5,9 +5,9 @@ Final Project for HPC Spring 2022
 
 Advection-dffusion
 
-$\frac{\partial u}{\partial t} + \mathbf{v}\cdot \nabla u + \nu\nabla^2 u= 0$
-$u|_{\partial\Omega} = 0$
-$u(x,y,0) = u_0(x,y)$
+<img src="https://render.githubusercontent.com/render/math?math=\frac{\partial u}{\partial t} + \mathbf{v}\cdot \nabla u + \nu\nabla^2 u= 0">
+<img src="https://render.githubusercontent.com/render/math?math=u|_{\partial\Omega} = 0">
+<img src="https://render.githubusercontent.com/render/math?math=u(x,y,0) = u_0(x,y)">
 
 ## Instruction
 
