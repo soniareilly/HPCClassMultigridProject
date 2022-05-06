@@ -11,7 +11,7 @@ Advection-dffusion
 
 ## Instruction
 
-### Required packages/libararies
+### Required packages/libraries
 
 1. `CUDA` (version 9 or higher)
 2. `OpenMP` (with `-fopenmp` compiler flag)
