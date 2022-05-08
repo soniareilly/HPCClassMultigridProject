@@ -2,6 +2,7 @@
 # (C) Tanya Wang, Sonia Reilly, Nolan Reilly, May 2022
 
 import matplotlib.pyplot as plt
+plt.rcParams.update({'font.size': 14})
 import numpy as np
 
 # read in 'serialtime.txt'
