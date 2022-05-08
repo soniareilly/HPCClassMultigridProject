@@ -4,12 +4,12 @@ Final Project for HPC Spring 2022
 ## Description 
 
 Solves the advection diffusion equations
-
+<style>
 img {
    -webkit-filter: invert(1);
    filter: invert(1);
    }
-
+</style>
 <img src="https://render.githubusercontent.com/render/math?math=\frac{\partial u}{\partial t} %2B \mathbf{v}\cdot \nabla u %2B \nu\nabla^2 u= 0">
 <img src="https://render.githubusercontent.com/render/math?math=u|_{\partial\Omega} = 0">
 <img src="https://render.githubusercontent.com/render/math?math=u(x,y,0) = u_0(x,y)">
